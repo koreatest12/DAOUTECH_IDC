@@ -1,0 +1,9 @@
+{
+  "cpu_warn": 80,
+  "mem_warn": 85,
+  "disk_warn": 85,
+  "disk_crit": 92,
+  "services": ["sshd", "crond"],
+  "ping_targets": ["127.0.0.1"],
+  "log_dir": "./healthcheck_logs"
+}

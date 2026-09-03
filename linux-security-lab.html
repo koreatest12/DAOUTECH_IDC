@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>리눅스 보안 운영 실습</title>
+<style>
+:root{
+  --paper:#F4F2ED;
+  --card:#FFFFFF;
+  --rule:#D8D3C8;
+  --ink:#241F1A;
+  --soft:#6B6357;
+  --deep:#2E4A3F;      /* 접근 허용 */
+  --clay:#9B4A2F;      /* 차단·위험 */
+  --ochre:#A8760F;     /* 주의 */
+  --slate:#3A4A57;
+  --mono:'IBM Plex Mono','D2Coding',ui-monospace,Consolas,monospace;
+  --sans:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.6}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--slate);outline-offset:2px}
+
+header{background:var(--slate);color:#E9EEF1;padding:20px 24px}
+header h1{font-size:23px;font-weight:600;letter-spacing:-.2px}
+header p{font-size:13.5px;color:#B3C1CB;margin-top:5px;max-width:70ch}
+
+nav{display:flex;gap:0;background:var(--card);border-bottom:1px solid var(--rule);padding:0 24px}
+nav button{padding:13px 20px;font-size:14.5px;color:var(--soft);border-bottom:3px solid transparent}
+nav button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--clay);font-weight:600}
+nav button:hover{color:var(--ink)}
+
+main{max-width:1080px;margin:0 auto;padding:24px}
+section[hidden]{display:none}
+.pane{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:860px){.pane{grid-template-columns:1fr}}
+.box{background:var(--card);border:1px solid var(--rule);padding:18px}
+.box h2{font-size:16px;font-weight:600;margin-bottom:4px}
+.box .lead{font-size:13px;color:var(--soft);margin-bottom:16px}
+
+/* 권한 계산기 */
+.bits{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.bits fieldset{border:1px solid var(--rule);padding:9px 11px}
+.bits legend{font-size:12.5px;padding:0 5px;color:var(--soft)}
+.bits label{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:13px;padding:2px 0}
+.special{display:flex;gap:16px;border-top:1px dashed var(--rule);padding-top:12px;margin-bottom:16px}
+.special label{display:flex;align-items:center;gap:6px;font-size:13px}
+.out{background:#2B2620;color:#F0EBE2;font-family:var(--mono);padding:14px;font-size:15px}
+.out .big{font-size:30px;letter-spacing:2px;display:block;margin-bottom:6px}
+.out .sym{color:#D9C89E}
+.note{font-size:12.5px;color:var(--soft);margin-top:12px;border-left:3px solid var(--ochre);padding-left:11px}
+input[type=text]{font-family:var(--mono);border:1px solid var(--rule);padding:7px 9px;width:100%;font-size:14px}
+
+/* 로그 실습 */
+.logbox{background:#211D18;color:#DDD5C7;font-family:var(--mono);font-size:12.5px;padding:13px;
+  max-height:290px;overflow:auto;line-height:1.7}
+.logbox div{cursor:pointer;padding:1px 4px;border-left:2px solid transparent}
+.logbox div:hover{background:#2E2921}
+.logbox div.pick{border-left-color:#D9A441;background:#332C22}
+.logbox div.hit{border-left-color:#7FB88A}
+.logbox div.miss{border-left-color:#C9705A}
+.verdict{margin-top:14px;padding:12px;border:1px solid var(--rule);font-size:13.5px}
+.verdict.good{border-color:var(--deep);background:#EDF4F0}
+.verdict.bad{border-color:var(--clay);background:#F8EEEA}
+.btn{border:1px solid var(--ink);padding:7px 15px;font-size:13.5px;background:var(--ink);color:#fff}
+.btn:hover{background:#3A322A}
+.btn.ghost{background:none;color:var(--ink)}
+.btn.ghost:hover{background:#EDE9E1}
+.row{display:flex;gap:9px;margin-top:14px;flex-wrap:wrap}
+
+/* 방화벽 */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;padding:8px 9px;border-bottom:2px solid var(--rule);font-size:12.5px}
+td{padding:8px 9px;border-bottom:1px solid #EFEBE3;vertical-align:top}
+td.m{font-family:var(--mono);font-size:12.5px}
+.tag{font-size:11.5px;padding:1px 7px;border:1px solid;white-space:nowrap}
+.tag.ok{color:var(--deep);border-color:var(--deep)}
+.tag.risk{color:var(--clay);border-color:var(--clay)}
+.tag.warn{color:var(--ochre);border-color:var(--ochre)}
+tr.flag{background:#FBF4EE}
+.why{font-size:12.5px;color:var(--soft);margin-top:3px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>리눅스 보안 운영 실습</h1>
+  <p>권한 값을 손으로 계산하고, 로그에서 침해 흔적을 골라내고, 방화벽 정책의 위험한 줄을 찾는 세 가지 연습입니다.
+     정보보안기사를 준비하며 정리한 내용을 직접 조작해 보려고 만들었습니다.</p>
+</header>
+
+<nav role="tablist">
+  <button role="tab" id="t1" aria-selected="true" aria-controls="p1">권한 계산</button>
+  <button role="tab" id="t2" aria-selected="false" aria-controls="p2">로그 판별</button>
+  <button role="tab" id="t3" aria-selected="false" aria-controls="p3">방화벽 정책 검토</button>
+</nav>
+
+<main>
+<!-- ══ 1. 권한 계산 ══ -->
+<section id="p1" role="tabpanel" aria-labelledby="t1">
+  <div class="pane">
+    <div class="box">
+      <h2>권한 비트 조합</h2>
+      <p class="lead">체크를 바꾸면 8진수와 기호 표기가 함께 바뀝니다.</p>
+      <div class="bits">
+        <fieldset><legend>소유자</legend>
+          <label><input type="checkbox" data-b="400" checked> r (4)</label>
+          <label><input type="checkbox" data-b="200" checked> w (2)</label>
+          <label><input type="checkbox" data-b="100"> x (1)</label>
+        </fieldset>
+        <fieldset><legend>그룹</legend>
+          <label><input type="checkbox" data-b="40" checked> r (4)</label>
+          <label><input type="checkbox" data-b="20"> w (2)</label>
+          <label><input type="checkbox" data-b="10"> x (1)</label>
+        </fieldset>
+        <fieldset><legend>기타</legend>
+          <label><input type="checkbox" data-b="4" checked> r (4)</label>
+          <label><input type="checkbox" data-b="2"> w (2)</label>
+          <label><input type="checkbox" data-b="1"> x (1)</label>
+        </fieldset>
+      </div>
+      <div class="special">
+        <label><input type="checkbox" data-s="4000"> setuid</label>
+        <label><input type="checkbox" data-s="2000"> setgid</label>
+        <label><input type="checkbox" data-s="1000"> sticky</label>
+      </div>
+      <div class="out">
+        <span class="big" id="oct">0644</span>
+        <span class="sym" id="sym">-rw-r--r--</span>
+      </div>
+      <div class="note" id="perm-note"></div>
+    </div>
+
+    <div class="box">
+      <h2>umask가 만드는 기본 권한</h2>
+      <p class="lead">umask는 빼는 값이 아니라 끄는 비트입니다. 파일은 실행 비트가 애초에 부여되지 않습니다.</p>
+      <label style="font-size:13px;color:var(--soft)">umask 값
+        <input type="text" id="umask" value="022" maxlength="4" style="margin-top:6px">
+      </label>
+      <div class="out" style="margin-top:14px">
+        <div>파일 &nbsp;666 &amp; ~umask = <b id="uf">644</b> &nbsp;<span class="sym" id="ufs">-rw-r--r--</span></div>
+        <div style="margin-top:6px">디렉터리 777 &amp; ~umask = <b id="ud">755</b> &nbsp;<span class="sym" id="uds">drwxr-xr-x</span></div>
+      </div>
+      <div class="note">
+        운영 서버에서 umask 002를 쓰면 같은 그룹의 다른 계정이 파일을 고칠 수 있습니다.
+        배포 계정을 그룹으로 묶어 쓰는 환경에서는 의도한 것인지 반드시 확인해야 합니다.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 2. 로그 판별 ══ -->
+<section id="p2" role="tabpanel" aria-labelledby="t2" hidden>
+  <div class="box">
+    <h2>secure 로그에서 침해 흔적 고르기</h2>
+    <p class="lead">아래 로그에서 공격으로 볼 수 있는 줄을 모두 고른 뒤 채점하십시오. 정상 운영 로그가 섞여 있습니다.</p>
+    <div class="logbox" id="log"></div>
+    <div class="row">
+      <button class="btn" id="grade">채점</button>
+      <button class="btn ghost" id="reset">다시 고르기</button>
+      <button class="btn ghost" id="reveal">해설 보기</button>
+    </div>
+    <div id="verdict"></div>
+  </div>
+</section>
+
+<!-- ══ 3. 방화벽 ══ -->
+<section id="p3" role="tabpanel" aria-labelledby="t3" hidden>
+  <div class="box">
+    <h2>고객사 요청 정책 검토</h2>
+    <p class="lead">접수된 정책 변경 요청입니다. 그대로 반영하면 위험한 줄과 그 이유를 표시했습니다.</p>
+    <table>
+      <thead><tr><th>#</th><th>출발지</th><th>목적지</th><th>서비스</th><th>동작</th><th>판정</th></tr></thead>
+      <tbody id="fw"></tbody>
+    </table>
+    <div class="note">
+      요청을 그대로 넣지 않고 되묻는 일이 방화벽 관리의 실제 업무라고 생각합니다.
+      고객사는 서비스가 되는 것이 목적이므로 범위를 넓게 요청하는 경우가 많고,
+      좁혀도 되는지 확인하는 것은 운영자의 몫입니다.
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+(function(){
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+/* ── 탭 ── */
+$$('nav button').forEach(btn => btn.addEventListener('click', () => {
+  $$('nav button').forEach(b => b.setAttribute('aria-selected', String(b === btn)));
+  $$('section').forEach(s => { s.hidden = s.id !== btn.getAttribute('aria-controls'); });
+}));
+
+/* ── 1. 권한 ── */
+function symbolic(mode){
+  const s = mode.toString(8).padStart(4,'0');
+  const sp = +s[0], parts = [];
+  [1,2,3].forEach((i,idx) => {
+    const d = +s[i];
+    let t = (d&4?'r':'-') + (d&2?'w':'-');
+    const x = d & 1;
+    if(idx===0) t += sp&4 ? (x?'s':'S') : (x?'x':'-');
+    else if(idx===1) t += sp&2 ? (x?'s':'S') : (x?'x':'-');
+    else t += sp&1 ? (x?'t':'T') : (x?'x':'-');
+    parts.push(t);
+  });
+  return '-' + parts.join('');
+}
+
+function calcPerm(){
+  let mode = 0;
+  $$('[data-b]').forEach(c => { if(c.checked) mode += parseInt(c.dataset.b, 8); });
+  $$('[data-s]').forEach(c => { if(c.checked) mode += parseInt(c.dataset.s, 8); });
+  const oct = mode.toString(8).padStart(4,'0');
+  $('#oct').textContent = oct;
+  $('#sym').textContent = symbolic(mode);
+
+  const notes = [];
+  if(mode & 0o4000) notes.push('setuid가 걸린 실행 파일은 소유자 권한으로 동작합니다. 루트 소유라면 권한 상승 통로가 됩니다.');
+  if(mode & 0o2000) notes.push('setgid 디렉터리 안에서 만들어지는 파일은 그 디렉터리의 그룹을 물려받습니다.');
+  if(mode & 0o1000) notes.push('sticky 비트가 있으면 소유자만 자기 파일을 지울 수 있습니다. /tmp가 대표적입니다.');
+  if((mode & 0o002)) notes.push('기타 사용자에게 쓰기가 열려 있습니다. 서버에 로그인 가능한 모든 계정이 이 파일을 고칠 수 있습니다.');
+  if(oct.slice(1) === '777') notes.push('777은 운영 환경에서 정당화되기 어렵습니다. 대부분 소유자·그룹 설정이 잘못된 것을 권한으로 덮은 경우입니다.');
+  $('#perm-note').innerHTML = notes.length ? notes.join('<br>') : '일반적인 권한 조합입니다.';
+}
+$$('[data-b],[data-s]').forEach(c => c.addEventListener('change', calcPerm));
+calcPerm();
+
+function calcUmask(){
+  const raw = $('#umask').value.trim();
+  const m = /^[0-7]{1,4}$/.test(raw) ? parseInt(raw, 8) : NaN;
+  if(Number.isNaN(m)){ $('#uf').textContent = '—'; $('#ud').textContent = '—'; return; }
+  const f = 0o666 & ~m & 0o777, d = 0o777 & ~m & 0o777;
+  $('#uf').textContent  = f.toString(8).padStart(3,'0');
+  $('#ufs').textContent = symbolic(f);
+  $('#ud').textContent  = d.toString(8).padStart(3,'0');
+  $('#uds').textContent = 'd' + symbolic(d).slice(1);
+}
+$('#umask').addEventListener('input', calcUmask);
+calcUmask();
+
+/* ── 2. 로그 ── */
+const LOG = [
+  {t:'Sep  2 02:14:03 web01 sshd[2841]: Accepted publickey for deploy from 10.20.0.44 port 51022 ssh2', a:false,
+   w:'등록된 관리망 대역에서 공개키로 접속했습니다. 정상 배포 접속입니다.'},
+  {t:'Sep  2 02:31:17 web01 sshd[3110]: Failed password for invalid user admin from 203.0.113.77 port 40122 ssh2', a:true,
+   w:'존재하지 않는 계정명으로 시도했습니다. 계정명을 추측하는 단계입니다.'},
+  {t:'Sep  2 02:31:18 web01 sshd[3111]: Failed password for invalid user oracle from 203.0.113.77 port 40124 ssh2', a:true,
+   w:'같은 출발지에서 1초 안에 다른 계정명으로 시도했습니다. 자동화된 대입입니다.'},
+  {t:'Sep  2 02:31:19 web01 sshd[3112]: Failed password for invalid user test from 203.0.113.77 port 40126 ssh2', a:true,
+   w:'계정명 사전을 순회하고 있습니다.'},
+  {t:'Sep  2 02:33:02 web01 sshd[3140]: Accepted password for oracle from 203.0.113.77 port 40188 ssh2', a:true,
+   w:'대입 시도와 같은 출발지에서 접속에 성공했습니다. 이 줄이 가장 위험합니다.'},
+  {t:'Sep  2 02:33:44 web01 sudo: oracle : TTY=pts/1 ; PWD=/home/oracle ; USER=root ; COMMAND=/bin/bash', a:true,
+   w:'침입 직후 루트 셸로 올라갔습니다. 권한 상승이 성공했습니다.'},
+  {t:'Sep  2 02:35:10 web01 useradd[3301]: new user: name=svcmon, UID=0, GID=0, home=/var/svcmon', a:true,
+   w:'UID 0으로 계정을 만들었습니다. 루트와 동등한 백도어 계정입니다.'},
+  {t:'Sep  2 02:36:55 web01 sshd[3352]: Server listening on 0.0.0.0 port 2222.', a:true,
+   w:'예정에 없던 포트에서 sshd가 대기 중입니다. 별도 접속 통로를 열어 둔 것입니다.'},
+  {t:'Sep  2 03:00:01 web01 CROND[3400]: (root) CMD (/usr/local/bin/backup_verify.sh)', a:false,
+   w:'등록된 백업 검증 배치입니다. 정상 스케줄입니다.'},
+  {t:'Sep  2 03:02:11 web01 systemd: Started Session 442 of user deploy.', a:false,
+   w:'배포 계정의 세션 시작입니다. 앞선 정상 접속과 이어집니다.'},
+  {t:'Sep  2 03:14:29 web01 sshd[3502]: Failed password for deploy from 10.20.0.44 port 51330 ssh2', a:false,
+   w:'등록 대역에서 한 번 실패했습니다. 오타 수준이며 이후 반복이 없습니다.'},
+  {t:'Sep  2 03:41:08 web01 kernel: Out of memory: Killed process 2210 (java)', a:false,
+   w:'자원 부족으로 인한 종료입니다. 침해가 아니라 용량 문제입니다.'}
+];
+
+function drawLog(){
+  $('#log').innerHTML = LOG.map((l,i) => `<div data-i="${i}">${l.t.replace(/&/g,'&amp;').replace(/</g,'&lt;')}</div>`).join('');
+  $('#verdict').innerHTML = '';
+}
+drawLog();
+
+$('#log').addEventListener('click', e => {
+  const row = e.target.closest('div[data-i]');
+  if(row) row.classList.toggle('pick');
+});
+
+$('#grade').addEventListener('click', () => {
+  const rows = $$('#log div[data-i]');
+  let hit = 0, miss = 0, wrong = 0;
+  rows.forEach(r => {
+    const l = LOG[+r.dataset.i], picked = r.classList.contains('pick');
+    r.classList.remove('hit','miss');
+    if(l.a && picked){ hit++; r.classList.add('hit'); }
+    else if(l.a && !picked){ miss++; r.classList.add('miss'); }
+    else if(!l.a && picked){ wrong++; r.classList.add('miss'); }
+  });
+  const total = LOG.filter(l => l.a).length;
+  const good = miss === 0 && wrong === 0;
+  $('#verdict').innerHTML = `<div class="verdict ${good?'good':'bad'}">
+    <b>공격 흔적 ${total}건 중 ${hit}건을 찾았습니다.</b>
+    ${miss ? `<br>놓친 줄 ${miss}건 — 붉은 표시를 확인하십시오.` : ''}
+    ${wrong ? `<br>정상 로그를 ${wrong}건 골랐습니다. 오탐을 줄이는 것도 같은 능력입니다.` : ''}
+    ${good ? '<br>정상 운영 로그와 공격 흔적을 모두 정확히 구분했습니다.' : ''}
+  </div>`;
+});
+
+$('#reset').addEventListener('click', drawLog);
+
+$('#reveal').addEventListener('click', () => {
+  $('#verdict').innerHTML = '<div class="verdict">' + LOG.map((l,i) =>
+    `<div style="padding:4px 0;border-bottom:1px solid #EFEBE3">
+      <b style="color:${l.a?'var(--clay)':'var(--deep)'}">${l.a?'공격':'정상'}</b>
+      · ${l.t.split(': ').slice(1).join(': ').slice(0,64)}<div class="why">${l.w}</div>
+    </div>`).join('') + '</div>';
+});
+
+/* ── 3. 방화벽 ── */
+const FW = [
+  {s:'0.0.0.0/0', d:'10.20.0.21/32', p:'tcp/443', a:'허용', v:'ok',
+   w:'공개 웹 서비스입니다. 목적지와 포트가 한정되어 있어 문제없습니다.'},
+  {s:'0.0.0.0/0', d:'10.20.0.0/24', p:'any', a:'허용', v:'risk',
+   w:'출발지·포트가 모두 열려 있고 목적지도 대역 전체입니다. 어떤 서비스를 열려는 것인지 되물어야 합니다.'},
+  {s:'10.20.0.0/24', d:'10.20.1.11/32', p:'tcp/1521', a:'허용', v:'ok',
+   w:'내부 애플리케이션에서 DB로 가는 정해진 경로입니다.'},
+  {s:'0.0.0.0/0', d:'10.20.1.11/32', p:'tcp/1521', a:'허용', v:'risk',
+   w:'DB 포트를 인터넷 전체에 여는 요청입니다. 접속이 필요한 대역을 받아 좁혀야 합니다.'},
+  {s:'203.0.113.0/24', d:'10.20.0.21/32', p:'tcp/22', a:'허용', v:'warn',
+   w:'외부에서 SSH를 여는 요청입니다. 유지보수용이라면 기간과 담당자를 받고 한시 정책으로 처리하는 편이 낫습니다.'},
+  {s:'10.99.0.0/24', d:'10.20.0.0/24', p:'tcp/161', a:'허용', v:'ok',
+   w:'관리망에서 SNMP 폴링입니다. 감시 서버 대역만 열려 있습니다.'},
+  {s:'any', d:'any', p:'icmp', a:'허용', v:'warn',
+   w:'전체 구간 ICMP 허용입니다. 장애 조치에는 편하지만 내부 구조 파악에도 쓰입니다. 관리망으로 좁힐 수 있는지 확인이 필요합니다.'},
+  {s:'0.0.0.0/0', d:'0.0.0.0/0', p:'any', a:'차단', v:'ok',
+   w:'마지막 명시적 차단 규칙입니다. 정책 끝에 있어야 합니다.'}
+];
+const TAG = {ok:['적정','ok'], warn:['확인 필요','warn'], risk:['위험','risk']};
+
+$('#fw').innerHTML = FW.map((r,i) => `
+  <tr class="${r.v!=='ok'?'flag':''}">
+    <td class="m">${i+1}</td><td class="m">${r.s}</td><td class="m">${r.d}</td>
+    <td class="m">${r.p}</td><td>${r.a}</td>
+    <td><span class="tag ${TAG[r.v][1]}">${TAG[r.v][0]}</span><div class="why">${r.w}</div></td>
+  </tr>`).join('');
+})();
+</script>
+</body>
+</html>

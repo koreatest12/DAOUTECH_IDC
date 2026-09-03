@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDC 장애 대응 랩</title>
+<style>
+:root{
+  --room:#E6E9EB;
+  --card:#FFFFFF;
+  --rule:#CBD2D8;
+  --ink:#111A21;
+  --soft:#5B6B77;
+  --deep:#1F5D8C;      /* 조사 */
+  --act:#8A4A22;       /* 조치 */
+  --ok:#26714A;
+  --bad:#A63A2E;
+  --hold:#8F6512;
+  --dark:#141C23;
+  --mono:'IBM Plex Mono','D2Coding',ui-monospace,Consolas,monospace;
+  --sans:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--room);color:var(--ink);font-family:var(--sans);font-size:13.5px;line-height:1.55}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--deep);outline-offset:2px}
+
+.top{background:var(--dark);color:#D3DBE1;padding:14px 20px}
+.top h1{font-size:20px;font-weight:600}
+.top p{font-size:12.5px;color:#8FA1AE;margin-top:4px;max-width:78ch}
+nav{background:var(--card);border-bottom:1px solid var(--rule);padding:0 20px;display:flex;overflow-x:auto}
+nav button{padding:11px 17px;color:var(--soft);border-bottom:3px solid transparent;white-space:nowrap}
+nav button[aria-selected=true]{color:var(--ink);font-weight:600;border-bottom-color:var(--act)}
+main{max-width:1160px;margin:0 auto;padding:18px 20px 44px}
+section[hidden]{display:none}
+
+.card{background:var(--card);border:1px solid var(--rule);margin-bottom:16px}
+.card>h2{font-size:15px;font-weight:600;padding:10px 14px;border-bottom:1px solid var(--rule)}
+.pad{padding:14px}
+.note{font-size:12.5px;color:var(--soft);padding:11px 14px;border-top:1px solid var(--rule);line-height:1.7}
+
+/* 시나리오 선택 */
+.picks{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.pick{border:1px solid var(--rule);padding:11px 13px;text-align:left;background:var(--card)}
+.pick:hover{background:#F1F4F6}
+.pick.on{border-color:var(--ink);border-width:2px;padding:10px 12px}
+.pick b{display:block;font-size:14px;margin-bottom:3px}
+.pick span{font-size:12px;color:var(--soft)}
+.pick .done{color:var(--ok);font-size:11.5px}
+
+/* 워크스페이스 */
+.work{display:grid;grid-template-columns:1fr 1.15fr;gap:16px;align-items:start}
+@media(max-width:900px){.work{grid-template-columns:1fr}}
+.ticket{background:#F7F3EC;border:1px solid #DCD2C2;padding:13px 15px;margin-bottom:14px}
+.ticket .id{font-family:var(--mono);font-size:12px;color:var(--soft)}
+.ticket h3{font-size:15px;margin:4px 0 7px}
+.ticket dl{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;font-size:12.5px}
+.ticket dt{color:var(--soft)}
+.ticket dd{font-family:var(--mono);font-size:12px}
+
+.grp{margin-bottom:14px}
+.grp h4{font-size:12.5px;color:var(--soft);margin-bottom:7px}
+.acts{display:flex;flex-wrap:wrap;gap:6px}
+.acts button{border:1px solid var(--rule);padding:5px 11px;font-size:12.5px;background:var(--card);font-family:var(--mono)}
+.acts button:hover{background:#EFF3F5}
+.acts button.used{background:#EDF2F6;color:var(--soft);border-style:dashed}
+.acts.fix button{border-color:#D8C3B0;background:#FBF6F2}
+.acts.fix button:hover{background:#F4E9E0}
+
+.term{background:var(--dark);color:#CBD6DD;font-family:var(--mono);font-size:12px;padding:12px;
+  height:340px;overflow:auto;line-height:1.7;white-space:pre-wrap}
+.term .cmd{color:#7FB0D4} .term .hit{color:#8FC7A4} .term .bad{color:#E2907F}
+.term .warn{color:#D9B36A} .term .dim{color:#71838F}
+
+.verdict{border:1px solid var(--rule);padding:13px 15px;margin-top:13px}
+.verdict.good{border-color:var(--ok);background:#EEF5F1}
+.verdict.bad{border-color:var(--bad);background:#F9EEEC}
+.verdict h4{font-size:14px;margin-bottom:6px}
+.score{font-family:var(--mono);font-size:12.5px}
+
+/* 보고서 */
+.rpt{font-size:13px}
+.rpt dl{display:grid;grid-template-columns:120px 1fr;gap:0}
+.rpt dt{padding:6px 0;color:var(--soft);border-bottom:1px solid #EDF0F2}
+.rpt dd{padding:6px 0;border-bottom:1px solid #EDF0F2}
+
+/* 임계치 */
+.thr{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.thr fieldset{border:1px solid var(--rule);padding:10px 12px}
+.thr legend{font-size:12.5px;padding:0 5px;color:var(--soft)}
+.thr label{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px;padding:3px 0}
+.thr input{width:64px;font-family:var(--mono);border:1px solid var(--rule);padding:3px 6px;text-align:right}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;padding:7px 9px;border-bottom:2px solid var(--rule);font-size:12px;background:#F4F6F7}
+td{padding:6px 9px;border-bottom:1px solid #EDF0F2}
+td.m{font-family:var(--mono);font-size:12px}
+td.r{text-align:right;font-family:var(--mono);font-size:12px}
+.tag{font-size:11px;padding:1px 7px;border:1px solid;white-space:nowrap}
+.tag.ok{color:var(--ok);border-color:var(--ok)}
+.tag.w{color:var(--hold);border-color:var(--hold)}
+.tag.c{color:var(--bad);border-color:var(--bad)}
+tr.fire{background:#FCF3F1}
+
+/* 변경 요청 */
+.steps{counter-reset:s}
+.step{display:grid;grid-template-columns:30px 1fr;gap:11px;padding:9px 0;border-bottom:1px solid #EDF0F2;opacity:.42}
+.step.on{opacity:1}
+.step .n{width:24px;height:24px;border:1px solid var(--rule);display:grid;place-items:center;
+  font-family:var(--mono);font-size:12px}
+.step.on .n{background:var(--ink);color:#fff;border-color:var(--ink)}
+.step b{font-size:13.5px}
+.step p{font-size:12.5px;color:var(--soft);margin-top:2px}
+.step .out{font-family:var(--mono);font-size:12px;background:#F4F6F7;padding:6px 9px;margin-top:6px;
+  border-left:3px solid var(--deep)}
+.btn{border:1px solid var(--ink);background:var(--ink);color:#fff;padding:7px 15px;font-size:13px}
+.btn.ghost{background:none;color:var(--ink)}
+.btn.ghost:hover{background:#EDF0F2}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>IDC 장애 대응 랩</h1>
+  <p>장애를 받고 조사해 원인을 판단한 뒤 조치까지 고르는 연습입니다. 불필요한 조사와 잘못된 조치도 함께 채점합니다.
+     조치보다 먼저 무엇을 확인하는지가 대응 시간을 좌우한다고 보기 때문입니다.</p>
+</div>
+
+<nav role="tablist">
+  <button role="tab" aria-selected="true" data-p="p1">장애 대응</button>
+  <button role="tab" aria-selected="false" data-p="p2">감시 기준</button>
+  <button role="tab" aria-selected="false" data-p="p3">변경 요청 처리</button>
+</nav>
+
+<main>
+<section id="p1">
+  <div class="card"><h2>접수된 장애</h2><div class="pad"><div class="picks" id="picks"></div></div></div>
+  <div id="stage"></div>
+</section>
+
+<section id="p2" hidden>
+  <div class="card"><h2>임계치 설정</h2><div class="pad">
+    <p style="color:var(--soft);margin-bottom:12px">값을 바꾸면 아래 감시 대상의 판정과 트리거 발화가 즉시 다시 계산됩니다.</p>
+    <div class="thr" id="thr"></div>
+  </div></div>
+  <div class="card"><h2>감시 대상</h2>
+    <table><thead><tr><th>호스트</th><th>OS</th><th class="r">CPU</th><th class="r">메모리</th>
+      <th class="r">디스크</th><th class="r">트래픽</th><th>판정</th></tr></thead><tbody id="hosts"></tbody></table>
+    <p class="note">임계치를 낮추면 잡아내는 대상이 늘지만 오탐도 함께 늘어납니다.
+      아래 발화 목록에서 몇 건이 실제 조치가 필요한 건인지 확인하며 조정하는 것이 감시 기준을 잡는 일입니다.</p>
+  </div>
+  <div class="card"><h2>트리거 발화</h2>
+    <table><thead><tr><th>시각</th><th>대상</th><th>내용</th><th>수준</th><th>상태</th></tr></thead>
+    <tbody id="fires"></tbody></table>
+  </div>
+</section>
+
+<section id="p3" hidden>
+  <div class="card"><h2>고객사 변경 요청</h2>
+    <div class="pad">
+      <div class="ticket">
+        <div class="id">Ticket #IDC-2026-0911</div>
+        <h3>WEB01 → APP01 TCP/8443 통신 허용</h3>
+        <dl>
+          <dt>고객사</dt><dd>ABC 금융</dd>
+          <dt>요청자</dt><dd>인프라팀 김OO 과장</dd>
+          <dt>출발지</dt><dd>10.10.10.21 (WEB01)</dd>
+          <dt>목적지</dt><dd>10.10.20.21 (APP01)</dd>
+          <dt>서비스</dt><dd>TCP/8443</dd>
+          <dt>작업 예정</dt><dd>2026-09-05 02:00 ~ 02:30</dd>
+        </dl>
+      </div>
+      <div class="steps" id="steps"></div>
+      <div class="row">
+        <button class="btn" id="chg-next">다음 단계</button>
+        <button class="btn ghost" id="chg-reset">처음부터</button>
+      </div>
+    </div>
+    <p class="note">
+      요청받은 그대로 적용하지 않고 4단계에서 범위를 되묻는 것이 이 절차의 핵심입니다.
+      고객사는 서비스가 되는 것이 목적이라 범위를 넓게 요청하는 경우가 많습니다.
+    </p>
+  </div>
+</section>
+</main>
+
+<script>
+/* ===ENGINE START=== DOM을 참조하지 않는 순수 로직 */
+const LAB = (function(){
+'use strict';
+
+/* 조사 액션 — 시나리오별로 결과가 다르다. useful:true 인 것이 원인 규명에 필요한 조사다. */
+const SCENARIOS = [
+  {
+    id:'S1', title:'웹 서비스 접속 불가',
+    ticket:{time:'01:12', from:'ABC 금융 운영팀', impact:'대외 웹 서비스 전면 중단',
+            desc:'고객사에서 https://www.abc-fin.co.kr 접속이 되지 않는다고 접수했습니다. 어제 저녁 방화벽 정책 정리 작업이 있었습니다.'},
+    probes:{
+      ping:      {u:true,  out:'PING 10.10.10.21 → 4 packets, 0% loss, avg 0.42ms\n서버는 살아 있습니다.'},
+      port:      {u:true,  out:'nc -vz 10.10.10.21 443 → connect timed out\nnc -vz 10.10.10.21 80  → succeeded\n443만 막혀 있습니다.'},
+      fw:        {u:true,  out:'정책 조회 (WEB_INBOUND)\n  seq 12  any → 10.10.10.21  tcp/80   ALLOW\n  seq 13  any → 10.10.10.21  tcp/443  DENY   ← 어제 22:40 변경\n  seq 99  any → any          any      DENY'},
+      dns:       {u:false, out:'www.abc-fin.co.kr → 10.10.10.21\n정방향·역방향 모두 정상입니다.'},
+      proc:      {u:false, out:'nginx  PID 1204  RUNNING  0.4% CPU\n웹 데몬은 정상 기동 중입니다.'},
+      applog:    {u:true,  out:'access.log 최근 30분 요청 0건\nerror.log 특이사항 없음\n요청 자체가 서버에 도달하지 않고 있습니다.'},
+      res:       {u:false, out:'CPU 4% · 메모리 31% · 디스크 44%\n자원은 여유롭습니다.'},
+      route:     {u:false, out:'traceroute 10.10.10.21 → 3 hop, 정상 도달'},
+      env:       {u:false, out:'RACK A01 흡기 23.1°C · 전력 4.2kW\n상면 환경은 정상입니다.'},
+      batch:     {u:false, out:'금일 배치 전건 정상 종료. 관련 없음.'}
+    },
+    causes:[
+      {t:'방화벽 443/TCP 정책이 DENY로 변경됨', ok:true},
+      {t:'DNS 레코드 오류', ok:false},
+      {t:'웹 데몬 정지', ok:false},
+      {t:'서버 자원 부족', ok:false}
+    ],
+    fixes:[
+      {t:'변경 이력 확인 후 443 정책 원복 요청', ok:true,
+       out:'어제 22:40 정책 정리 작업에서 443 규칙이 함께 삭제된 것을 확인했습니다.\n변경 승인 후 원복 → nc -vz 443 succeeded → 서비스 정상화.'},
+      {t:'웹 서버 재기동', ok:false,
+       out:'재기동해도 증상 그대로입니다. 서버가 아니라 경로가 막혀 있습니다.\n불필요한 재기동으로 중단 시간만 늘었습니다.'},
+      {t:'DNS 레코드 재등록', ok:false,
+       out:'DNS는 이미 정상입니다. 변경해도 달라지지 않고 오히려 다른 문제를 만듭니다.'},
+      {t:'고객사에 서버 증설 제안', ok:false, out:'자원 문제가 아닙니다.'}
+    ],
+    prevent:'방화벽 정책 정리 작업 시 삭제 대상 목록을 사전 검토하고, 작업 후 주요 서비스 포트 도달성을 점검 항목에 넣습니다.'
+  },
+  {
+    id:'S2', title:'도메인으로만 접속 실패',
+    ticket:{time:'09:35', from:'ABC 금융 개발팀', impact:'신규 API 연동 지연',
+            desc:'IP로는 붙는데 도메인으로는 안 됩니다. 어제 신규 서비스 도메인을 등록 요청했습니다.'},
+    probes:{
+      dns:       {u:true,  out:'dig api.abc-fin.co.kr → NXDOMAIN\ndig abc-fin.co.kr    → 10.10.10.21 (정상)\n신규 서브도메인 레코드가 없습니다.'},
+      port:      {u:true,  out:'nc -vz 10.10.20.21 8443 → succeeded\nIP + 포트로는 정상 도달합니다.'},
+      zone:      {u:true,  out:'존 파일 abc-fin.co.kr 확인\n  @    A 10.10.10.21\n  www  A 10.10.10.21\n  api  레코드 없음   ← 등록 누락\n시리얼 2026090101 (어제 갱신됨)'},
+      ping:      {u:false, out:'PING 10.10.20.21 → 0% loss. 서버는 정상입니다.'},
+      fw:        {u:false, out:'정책 조회\n  seq 41  10.10.10.0/24 → 10.10.20.21  tcp/8443  ALLOW\n방화벽은 열려 있습니다. 이 증상의 원인이 아닙니다.'},
+      proc:      {u:false, out:'java PID 3820 RUNNING. 애플리케이션 정상.'},
+      res:       {u:false, out:'CPU 22% · 메모리 48% · 디스크 51%\n자원은 여유롭습니다. 부하 문제가 아닙니다.'},
+      applog:    {u:false, out:'애플리케이션 로그에 접속 시도 흔적이 없습니다.'},
+      route:     {u:false, out:'traceroute 3 hop 정상 도달. 라우팅 문제가 아닙니다.'},
+      env:       {u:false, out:'해당 랙 흡기 24.2°C · 전력 4.6kW · 습도 45%\n상면 환경은 정상 범위입니다.'}
+    },
+    causes:[
+      {t:'DNS에 api 서브도메인 A 레코드가 등록되지 않음', ok:true},
+      {t:'방화벽에서 8443이 차단됨', ok:false},
+      {t:'애플리케이션 정지', ok:false},
+      {t:'라우팅 경로 이상', ok:false}
+    ],
+    fixes:[
+      {t:'존 파일에 A 레코드 추가 후 시리얼 증가·리로드', ok:true,
+       out:'api IN A 10.10.20.21 추가, 시리얼 2026090102로 증가, named-checkzone 통과 후 리로드.\ndig api.abc-fin.co.kr → 10.10.20.21 정상 응답. 고객사 확인 완료.'},
+      {t:'방화벽 정책 추가', ok:false, out:'8443은 이미 열려 있습니다. 정책만 늘어납니다.'},
+      {t:'애플리케이션 재기동', ok:false, out:'애플리케이션은 정상입니다. 증상이 그대로입니다.'},
+      {t:'고객사에 IP로 접속하도록 안내', ok:false,
+       out:'임시로는 되지만 요청을 처리하지 않은 것입니다. 인증서 도메인 검증도 실패합니다.'}
+    ],
+    prevent:'도메인 등록 요청 처리 절차에 존 파일 수정, 시리얼 증가, 검증 조회까지를 필수 단계로 넣고 완료 통보 전에 조회 결과를 첨부합니다.'
+  },
+  {
+    id:'S3', title:'APP01 CPU 98% 지속',
+    ticket:{time:'23:51', from:'감시 시스템 자동 발화', impact:'응답 지연 2초 → 15초',
+            desc:'APP01의 CPU 임계치 초과 트리거가 발화했고, 웹 응답 시간이 함께 늘고 있습니다.'},
+    probes:{
+      res:       {u:true,  out:'CPU 98% · 메모리 76% · 디스크 64%\nload average 14.2 (코어 4개) — 심각한 과부하입니다.'},
+      proc:      {u:true,  out:'java   PID 3812  CPU 91%  RSS 5.8G\nnginx  PID 1204  CPU  2%\n단일 자바 프로세스가 CPU를 점유하고 있습니다.'},
+      applog:    {u:true,  out:'23:44 TimeoutException: could not get connection\n23:46 HikariPool-1 - Connection is not available (30000ms)\n23:48 DB Connection Pool Exhausted (active=50 idle=0 waiting=137)\n커넥션 풀이 고갈되어 대기가 쌓이고 있습니다.'},
+      db:        {u:true,  out:'DB01 세션 확인\n  active 50 / max 200 · 대기 없음\n  long-running query 없음\nDB 자체는 여유가 있습니다. APP 쪽 풀 크기 문제입니다.'},
+      port:      {u:false, out:'8443 응답은 하지만 느립니다. 원인 규명에는 도움이 되지 않습니다.'},
+      fw:        {u:false, out:'최근 7일 정책 변경 이력 없음\n8443 ALLOW 유지 중. 이 증상과 관련이 없습니다.'},
+      dns:       {u:false, out:'dig 정방향·역방향 모두 정상 응답.\n이름 해석은 문제가 없습니다.'},
+      env:       {u:false, out:'RACK B01 흡기 24.8°C. 상면 정상.'},
+      batch:     {u:true,  out:'23:40 JOB_SETTLE_B 지연 시작 (평소 23:05 종료 → 미종료)\n같은 DB를 쓰는 야간 배치가 커넥션을 점유하고 있습니다.'},
+      route:     {u:false, out:'traceroute 3 hop 정상 도달. 라우팅 문제가 아닙니다.'}
+    },
+    causes:[
+      {t:'야간 배치와 온라인이 같은 커넥션 풀을 경합해 풀이 고갈됨', ok:true},
+      {t:'DB 서버 자원 부족', ok:false},
+      {t:'네트워크 구간 장애', ok:false},
+      {t:'디스크 용량 부족', ok:false}
+    ],
+    fixes:[
+      {t:'지연 배치 확인 후 온라인 영향 차단, 풀 분리 검토', ok:true,
+       out:'지연된 JOB_SETTLE_B를 확인해 선행 잡 지연이 원인임을 파악했습니다.\n야간 배치용 커넥션 풀을 온라인과 분리하도록 고객사에 제안하고,\n당장은 배치 우선순위를 낮춰 온라인 응답을 회복시켰습니다.'},
+      {t:'APP01 즉시 재기동', ok:false,
+       out:'풀은 초기화되지만 배치가 계속 도므로 몇 분 뒤 같은 상태가 됩니다.\n원인을 남긴 채 증상만 지운 것입니다.'},
+      {t:'DB 서버 증설 요청', ok:false, out:'DB는 active 50/200으로 여유가 있습니다. 비용만 발생합니다.'},
+      {t:'java 프로세스 강제 종료', ok:false, out:'서비스가 중단됩니다. 진행 중 거래가 유실될 수 있습니다.'}
+    ],
+    prevent:'배치와 온라인의 커넥션 풀을 분리하고, 선행 배치 지연을 임계치 알람 항목으로 추가해 온라인에 영향이 가기 전에 인지합니다.'
+  },
+  {
+    id:'S4', title:'DB01 디스크 사용률 97%',
+    ticket:{time:'03:20', from:'감시 시스템 자동 발화', impact:'아직 없음 · 임박',
+            desc:'DB01의 /u01 파일시스템이 97%에 도달했습니다. 서비스는 아직 정상입니다.'},
+    probes:{
+      df:        {u:true,  out:'/            42% (여유 58G)\n/u01         97% (여유 12G)   ← 대상\n/u01/archive 31% (여유 620G)'},
+      du:        {u:true,  out:'/u01 하위 상위 5개\n  8.4G  /u01/app/oracle/diag/rdbms/.../trace\n  6.1G  /u01/app/oracle/audit\n  2.2G  /u01/oradata\n  1.1G  /u01/app/oracle/product\ntrace와 audit이 비정상적으로 큽니다.'},
+      applog:    {u:true,  out:'trace 파일 생성 추이\n  09-01  120MB\n  09-02  1.2GB\n  09-03  6.8GB   ← 어제부터 급증\n특정 세션이 대량의 trace를 남기고 있습니다.'},
+      res:       {u:false, out:'CPU 31% · 메모리 62%. 자원은 여유롭습니다.'},
+      proc:      {u:false, out:'oracle 프로세스 정상 기동 중.'},
+      db:        {u:true,  out:'테이블스페이스 사용률\n  SYSTEM 61% · USERS 74% · DATA01 68%\n데이터 증가가 아니라 로그·trace 증가입니다.'},
+      ping:      {u:false, out:'dig 정방향·역방향 모두 정상 응답.\n이름 해석은 문제가 없습니다.'},
+      fw:        {u:false, out:'해당 항목에서 이상 징후가 확인되지 않습니다.\n이 증상과는 별개의 계통입니다.'},
+      env:       {u:false, out:'해당 랙 흡기 24.2°C · 전력 4.6kW · 습도 45%\n상면 환경은 정상 범위입니다.'},
+      batch:     {u:false, out:'금일 배치 전건 정상 종료 (마지막 JOB 04:12 완료).\n배치와는 무관합니다.'}
+    },
+    causes:[
+      {t:'trace·audit 로그 급증으로 파일시스템이 찬 것', ok:true},
+      {t:'데이터 증가로 테이블스페이스가 찬 것', ok:false},
+      {t:'백업 파일이 쌓인 것', ok:false},
+      {t:'디스크 하드웨어 장애', ok:false}
+    ],
+    fixes:[
+      {t:'보관 기준 확인 후 오래된 trace·audit 정리, 급증 원인 조사', ok:true,
+       out:'고객사 보관 기준(30일)을 확인하고 그 이전 trace·audit을 정리해 /u01 사용률 62%로 회복했습니다.\n어제부터 급증한 원인은 특정 세션의 이벤트 추적 설정이 켜진 채 남아 있던 것으로,\n고객사 DBA에게 전달해 해제하도록 했습니다.'},
+      {t:'즉시 서버 재부팅', ok:false, out:'디스크는 그대로입니다. 서비스만 중단됩니다.'},
+      {t:'/u01 전체 삭제 후 재생성', ok:false, out:'데이터 파일이 함께 지워집니다. 절대 해서는 안 됩니다.'},
+      {t:'디스크 증설만 요청하고 종료', ok:false,
+       out:'증설해도 하루 6.8GB씩 늘면 다시 찹니다. 급증 원인을 남긴 채 시간을 산 것뿐입니다.'}
+    ],
+    prevent:'trace·audit 경로를 별도 파일시스템으로 분리하고, 일일 증가량 임계치를 감시 항목에 추가해 용량이 아니라 증가 속도로 먼저 인지합니다.'
+  },
+  {
+    id:'S5', title:'RACK A01 온도 상승',
+    ticket:{time:'14:08', from:'상면 환경 감시', impact:'장비 정지 위험',
+            desc:'A01 랙 흡기 온도가 23도에서 31도까지 올랐습니다. 장비는 아직 모두 정상입니다.'},
+    probes:{
+      env:       {u:true,  out:'RACK A01  흡기 31.2°C  습도 41%  전력 5.9kW\nRACK A02  흡기 23.6°C  습도 46%  전력 4.4kW\nRACK B01  흡기 24.1°C  습도 45%  전력 5.1kW\nA01만 올라 있습니다. 실 전체 문제는 아닙니다.'},
+      crac:      {u:true,  out:'항온항습기 CRAC-2 상태\n  송풍 정상 · 냉수 밸브 개도 12% (정상 65~80%)\n  경보: 냉수 공급 온도 상승\nA01 열을 담당하는 CRAC-2에 이상이 있습니다.'},
+      hw:        {u:true,  out:'A01 장비 흡기 온도\n  kr-edge-rt01  44°C\n  kr-core-sw01  47°C\n  kr-fw01       53°C  ← 경고 임계 55°C 근접\n아직 정지 임계에는 도달하지 않았습니다.'},
+      res:       {u:false, out:'CPU·메모리 모두 평소 수준입니다.'},
+      proc:      {u:false, out:'대상 프로세스 정상 기동 중, CPU·RSS 평소 수준.\n프로세스 문제가 아닙니다.'},
+      applog:    {u:false, out:'최근 30분 error 레벨 0건. 애플리케이션은 조용합니다.'},
+      ping:      {u:false, out:'전 장비 응답 정상.'},
+      fw:        {u:false, out:'해당 항목에서 이상 징후가 확인되지 않습니다.\n이 증상과는 별개의 계통입니다.'},
+      dns:       {u:false, out:'해당 항목에서 이상 징후가 확인되지 않습니다.\n이 증상과는 별개의 계통입니다.'},
+      batch:     {u:false, out:'해당 항목에서 이상 징후가 확인되지 않습니다.\n이 증상과는 별개의 계통입니다.'}
+    },
+    causes:[
+      {t:'A01을 담당하는 항온항습기 냉수 계통 이상', ok:true},
+      {t:'서버 부하 급증으로 인한 발열', ok:false},
+      {t:'랙 전력 초과', ok:false},
+      {t:'장비 팬 고장', ok:false}
+    ],
+    fixes:[
+      {t:'시설 담당자 통보, 이동식 냉방 요청, 장비 온도 상시 감시', ok:true,
+       out:'CRAC-2 냉수 밸브 이상을 시설 담당자에게 즉시 통보하고 이동식 냉방을 A01 전면에 배치했습니다.\n장비 흡기 온도를 5분 간격으로 감시하며 kr-fw01이 55°C에 도달하면\n이중화 상대로 절체할 준비를 해 두었습니다. 40분 뒤 26°C로 회복했습니다.'},
+      {t:'A01 장비를 즉시 전부 정지', ok:false,
+       out:'아직 정지 임계에 도달하지 않았습니다. 고객 서비스를 스스로 중단시킨 것이 됩니다.'},
+      {t:'서버 부하를 줄이도록 고객사에 요청', ok:false, out:'부하는 평소 수준입니다. 원인이 아닙니다.'},
+      {t:'경보 임계치를 35도로 올려 알람을 끔', ok:false,
+       out:'가장 위험한 선택입니다. 문제를 보이지 않게 만들 뿐입니다.'}
+    ],
+    prevent:'항온항습기와 담당 랙의 대응 관계를 문서로 정리하고, 냉수 밸브 개도를 감시 항목에 추가해 랙 온도가 오르기 전에 인지합니다.'
+  },
+  {
+    id:'S6', title:'야간 배치 지연 연쇄',
+    ticket:{time:'02:14', from:'배치 운영', impact:'마감 시간 초과 위험',
+            desc:'JOB_B가 평소보다 늦어지며 후속 JOB_C와 JOB_D가 대기 중입니다. 마감은 05:00입니다.'},
+    probes:{
+      batch:     {u:true,  out:'JOB_A  23:00 시작 → 23:12 정상 종료 (평소 23:10)\nJOB_B  23:12 시작 → 진행 중 (평소 23:05 종료)  ← 지연\nJOB_C  대기 (선행 JOB_B)\nJOB_D  대기 (선행 JOB_C)\n마감까지 2시간 46분 남았습니다.'},
+      res:       {u:true,  out:'APP02  CPU 88% · 메모리 71%\nDB01   CPU 44% · 메모리 68%\nJOB_B가 도는 APP02의 CPU가 올라 있습니다.'},
+      db:        {u:true,  out:'DB01 세션\n  JOB_B 세션 12개 active, 평균 실행 4분 12초 (평소 40초)\n  대기 이벤트: db file sequential read 상위\n  커넥션 대기 큐 38\n인덱스를 타지 못하는 조회가 늘었습니다.'},
+      applog:    {u:true,  out:'JOB_B 로그\n  02:01 처리 건수 1,240,880 (평소 340,000)\n  02:09 재시도 0회\n실패가 아니라 처리량이 평소의 3.6배입니다.'},
+      proc:      {u:false, out:'batch-agent PID 2210 RUNNING · java PID 3812 RUNNING\n프로세스는 살아 있습니다. 멈춘 것이 아니라 느린 것입니다.'},
+      fw:        {u:false, out:'최근 정책 변경 이력 없음. 배치 서버와 DB 간 통신은\n기존 정책으로 허용되어 있습니다.'},
+      dns:       {u:false, out:'해당 항목에서 이상 징후가 확인되지 않습니다.\n이 증상과는 별개의 계통입니다.'},
+      env:       {u:false, out:'해당 랙 흡기 24.2°C · 전력 4.6kW · 습도 45%\n상면 환경은 정상 범위입니다.'},
+      ping:      {u:false, out:'전 구간 ping 응답 정상, 손실 0%.\n네트워크 도달성 문제는 아닙니다.'},
+      port:      {u:false, out:'대상 포트 연결 성공 (0.24s). 서비스는 응답하고 있습니다.'}
+    },
+    causes:[
+      {t:'처리 대상 급증으로 JOB_B 소요 시간이 늘어난 것', ok:true},
+      {t:'JOB_B 실패 후 무한 재시도', ok:false},
+      {t:'네트워크 구간 지연', ok:false},
+      {t:'DB 서버 다운', ok:false}
+    ],
+    fixes:[
+      {t:'예상 종료 시각 산출 후 마감 영향 통보, 후속 잡 우선순위 조정', ok:true,
+       out:'현재 처리 속도로 예상 종료 시각을 03:05로 산출했습니다.\n마감 05:00 기준 JOB_C·D 소요를 더해도 04:20으로 마감 내 완료가 가능함을 확인하고,\n고객사와 관제에 예상 시각을 먼저 통보했습니다.\n동시에 JOB_C가 쓰는 자원을 선점하지 않도록 후속 잡 시작 조건을 조정했습니다.'},
+      {t:'JOB_B 강제 종료 후 재수행', ok:false,
+       out:'이미 124만 건 중 상당수를 처리했습니다. 재수행하면 처음부터 다시 돌아 마감을 넘깁니다.'},
+      {t:'JOB_C·D를 선행 무시하고 먼저 실행', ok:false,
+       out:'선후행 의존이 있는 잡입니다. 데이터 정합성이 깨집니다.'},
+      {t:'아침까지 기다렸다가 보고', ok:false,
+       out:'마감을 넘긴 뒤의 보고는 대응이 아닙니다. 영향 통보는 지연을 인지한 시점에 해야 합니다.'}
+    ],
+    prevent:'처리 건수 급증을 지연 발생 전에 감지하도록 선행 잡의 입력 건수를 감시 항목에 추가하고, 예상 종료 시각을 자동 산출해 마감 초과가 예상되면 먼저 통보합니다.'
+  }
+];
+
+const PROBE_LABEL = {
+  ping:'ping', port:'포트 연결', fw:'방화벽 정책', dns:'DNS 조회', zone:'존 파일',
+  route:'경로 추적', proc:'프로세스', res:'자원 사용률', applog:'로그 조회',
+  db:'DB 세션', df:'df -h', du:'du 상위', env:'상면 환경', crac:'항온항습기',
+  hw:'장비 온도', batch:'배치 이력'
+};
+
+const PROBE_GROUP = [
+  ['네트워크·보안', ['ping','port','route','fw','dns','zone']],
+  ['서버·애플리케이션', ['res','proc','applog','db','df','du']],
+  ['상면·배치', ['env','crac','hw','batch']]
+];
+
+function grade(sc, used, causeIdx, fixIdx){
+  const useful = Object.keys(sc.probes).filter(k => sc.probes[k].u);
+  const hit = useful.filter(k => used.includes(k));
+  const waste = used.filter(k => sc.probes[k] && !sc.probes[k].u);
+  const causeOk = !!(sc.causes[causeIdx] && sc.causes[causeIdx].ok);
+  const fixOk = !!(sc.fixes[fixIdx] && sc.fixes[fixIdx].ok);
+  return {
+    useful, hit, waste, causeOk, fixOk,
+    complete: hit.length === useful.length,
+    pass: !!(causeOk && fixOk)
+  };
+}
+
+/* 감시 기준 — 임계치를 바꾸면 판정과 발화가 다시 계산된다 */
+const HOSTS = [
+  {h:'web-front01', os:'Linux',   cpu:23, mem:45, disk:62, net:130, real:false},
+  {h:'web-front02', os:'Linux',   cpu:78, mem:55, disk:65, net:250, real:false},
+  {h:'app-batch02', os:'Linux',   cpu:97, mem:81, disk:71, net:410, real:true},
+  {h:'db-ora01',    os:'Linux',   cpu:65, mem:72, disk:80, net:300, real:false},
+  {h:'db-ora02',    os:'Linux',   cpu:44, mem:69, disk:93, net:120, real:true},
+  {h:'win-ad01',    os:'Windows', cpu:18, mem:58, disk:47, net: 40, real:false},
+  {h:'cdn-cache01', os:'Linux',   cpu:71, mem:88, disk:59, net:980, real:true},
+  {h:'bkp-master01',os:'Linux',   cpu:35, mem:41, disk:76, net:1240,real:false}
+];
+
+const DEFAULT_THR = {cpuW:80, cpuC:95, memW:85, memC:95, diskW:80, diskC:90, netW:800, netC:1100};
+
+function judge(host, t){
+  const checks = [
+    ['CPU', host.cpu, t.cpuW, t.cpuC],
+    ['메모리', host.mem, t.memW, t.memC],
+    ['디스크', host.disk, t.diskW, t.diskC],
+    ['트래픽', host.net, t.netW, t.netC]
+  ];
+  let level = 0, reasons = [];
+  for(const [name, v, w, c] of checks){
+    if(v >= c){ level = Math.max(level, 2); reasons.push(`${name} ${v} ≥ ${c}`); }
+    else if(v >= w){ level = Math.max(level, 1); reasons.push(`${name} ${v} ≥ ${w}`); }
+  }
+  return {level, reasons};
+}
+
+function fires(thr){
+  const out = [];
+  let t = 51 * 60 + 5;   // 23:51:05 부터 순차 발화
+  for(const h of HOSTS){
+    const j = judge(h, thr);
+    if(!j.level) continue;
+    out.push({host:h.h, level:j.level, why:j.reasons.join(' · '), real:h.real, sec:t});
+    t += 47;
+  }
+  return out;
+}
+
+/* 변경 요청 9단계 */
+const CHANGE = [
+  {t:'요청 접수', d:'티켓 내용과 요청자를 확인하고 접수 회신을 보냅니다.',
+   o:'Ticket #IDC-2026-0911 접수 · 담당 배정 완료'},
+  {t:'출발지·목적지 확인', d:'요청한 IP가 실제 그 고객사 자산인지 대조합니다.',
+   o:'10.10.10.21 WEB01 · 10.10.20.21 APP01 — 둘 다 ABC 금융 자산으로 확인'},
+  {t:'서비스와 포트 확인', d:'8443이 어떤 용도인지, 기존에 열린 정책이 있는지 봅니다.',
+   o:'현재 정책: seq 41  10.10.10.21 → 10.10.20.21  tcp/8443  DENY'},
+  {t:'범위 검토와 되묻기', d:'요청 범위가 필요 이상으로 넓지 않은지 확인합니다. 이 단계가 핵심입니다.',
+   o:'요청 원문은 "WEB 대역 전체 → APP 대역 전체"였습니다.\n필요한 통신이 WEB01 → APP01 단일 구간임을 확인해 /32 단위로 좁혔습니다.'},
+  {t:'작업 승인', d:'변경 관리 절차에 따라 승인과 작업 창을 확정합니다.',
+   o:'변경번호 CHG-2609-041 · 작업 창 09-05 02:00~02:30 · 롤백 절차 첨부'},
+  {t:'정책 적용', d:'작업 창 안에서 정책을 반영합니다.',
+   o:'seq 41  10.10.10.21/32 → 10.10.20.21/32  tcp/8443  ALLOW\n적용 시각 02:04 · 세션 테이블 영향 없음'},
+  {t:'통신 시험', d:'적용만 하고 끝내지 않고 실제로 붙는지 확인합니다.',
+   o:'nc -vz 10.10.20.21 8443 → succeeded (0.31s)\n역방향 불필요 확인 완료'},
+  {t:'고객 통보', d:'결과와 적용 범위를 회신합니다. 좁힌 이유도 함께 알립니다.',
+   o:'적용 완료 회신 · 요청 대역 전체가 아닌 단일 구간으로 적용한 사유 설명\n추가 구간이 필요하면 별도 요청하도록 안내'},
+  {t:'작업 종료', d:'변경 이력과 검증 결과를 기록하고 티켓을 닫습니다.',
+   o:'CHG-2609-041 종료 · 정책 백업본 저장 · 다음 정기 검토 대상에 등록'}
+];
+
+return {SCENARIOS, PROBE_LABEL, PROBE_GROUP, HOSTS, DEFAULT_THR, CHANGE, grade, judge, fires};
+})();
+/* ===ENGINE END=== */
+
+if(typeof module !== 'undefined') module.exports = LAB;
+if(typeof document !== 'undefined') (function(){
+'use strict';
+const L = LAB;
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+let cur = null, used = [], cause = null, fix = null, cleared = {};
+
+$$('nav button').forEach(b => b.addEventListener('click', () => {
+  $$('nav button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  $$('main section').forEach(s => { s.hidden = s.id !== b.dataset.p; });
+}));
+
+/* ── 장애 대응 ── */
+function drawPicks(){
+  $('#picks').innerHTML = L.SCENARIOS.map(s => `
+    <button class="pick ${cur && cur.id === s.id ? 'on' : ''}" data-s="${s.id}">
+      <b>${s.id} · ${s.title}</b>
+      <span>${s.ticket.time} · ${s.ticket.impact}</span>
+      ${cleared[s.id] ? '<span class="done">통과</span>' : ''}
+    </button>`).join('');
+}
+
+function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function drawStage(){
+  if(!cur){ $('#stage').innerHTML = ''; return; }
+  const groups = L.PROBE_GROUP.map(([name, keys]) => {
+    const avail = keys.filter(k => cur.probes[k]);
+    if(!avail.length) return '';
+    return `<div class="grp"><h4>${name}</h4><div class="acts">
+      ${avail.map(k => `<button data-probe="${k}" class="${used.includes(k)?'used':''}">${L.PROBE_LABEL[k]}</button>`).join('')}
+    </div></div>`;
+  }).join('');
+
+  $('#stage').innerHTML = `
+    <div class="card"><h2>${cur.id} · ${cur.title}</h2><div class="pad">
+      <div class="work">
+        <div>
+          <div class="ticket">
+            <div class="id">접수 ${cur.ticket.time} · ${cur.ticket.from}</div>
+            <h3>${cur.title}</h3>
+            <p style="font-size:12.5px;margin-bottom:7px">${cur.ticket.desc}</p>
+            <dl><dt>서비스 영향</dt><dd>${cur.ticket.impact}</dd></dl>
+          </div>
+          ${groups}
+          <div class="grp"><h4>원인 판단</h4><div class="acts">
+            ${cur.causes.map((c,i) => `<button data-cause="${i}" style="font-family:var(--sans)">${c.t}</button>`).join('')}
+          </div></div>
+          <div class="grp"><h4>조치 선택</h4><div class="acts fix">
+            ${cur.fixes.map((f,i) => `<button data-fix="${i}" style="font-family:var(--sans)">${f.t}</button>`).join('')}
+          </div></div>
+        </div>
+        <div>
+          <div class="term" id="term"><span class="dim">조사할 항목을 눌러 정보를 모으십시오.
+원인을 판단한 뒤 조치를 고르면 채점합니다.</span></div>
+          <div id="verdict"></div>
+        </div>
+      </div>
+    </div>
+    <p class="note">조사하지 않은 항목이 있어도 조치를 고를 수 있습니다.
+      실제 현장에서도 확인을 건너뛴 채 조치하는 일이 생기므로, 그 경우 어떤 근거가 빠졌는지 함께 보여 줍니다.</p>
+    </div>`;
+}
+
+function term(html){
+  const t = $('#term');
+  if(t.querySelector('.dim')) t.innerHTML = '';
+  t.insertAdjacentHTML('beforeend', html);
+  t.scrollTop = t.scrollHeight;
+}
+
+function runProbe(key){
+  const p = cur.probes[key];
+  if(!p) return;
+  if(!used.includes(key)) used.push(key);
+  term(`<span class="cmd">› ${L.PROBE_LABEL[key]}</span>\n${esc(p.out)}\n\n`);
+  drawStage2();
+}
+
+function drawStage2(){
+  $$('[data-probe]').forEach(b => b.classList.toggle('used', used.includes(b.dataset.probe)));
+}
+
+function finish(){
+  if(cause === null || fix === null) return;
+  const g = L.grade(cur, used, cause, fix);
+  const f = cur.fixes[fix];
+  term(`<span class="${f.ok?'hit':'bad'}">› 조치: ${f.t}</span>\n${esc(f.out)}\n\n`);
+
+  const missed = g.useful.filter(k => !used.includes(k)).map(k => L.PROBE_LABEL[k]);
+  if(g.pass) cleared[cur.id] = true;
+
+  $('#verdict').innerHTML = `<div class="verdict ${g.pass?'good':'bad'}">
+    <h4>${g.pass ? '원인과 조치가 모두 맞았습니다.' : '다시 보십시오.'}</h4>
+    <div class="score">
+      원인 판단 ${g.causeOk ? '정답' : '오답'} · 조치 ${g.fixOk ? '정답' : '오답'}<br>
+      필요한 조사 ${g.hit.length}/${g.useful.length}${missed.length ? ` · 빠뜨림: ${missed.join(', ')}` : ''}<br>
+      불필요한 조사 ${g.waste.length}건${g.waste.length ? ` (${g.waste.map(k=>L.PROBE_LABEL[k]).join(', ')})` : ''}
+    </div>
+    ${!g.causeOk ? `<p style="margin-top:8px">실제 원인: ${cur.causes.find(c=>c.ok).t}</p>` : ''}
+    ${g.pass ? report(g) : ''}
+  </div>`;
+  drawPicks();
+}
+
+function report(g){
+  const f = cur.fixes.find(x => x.ok);
+  return `<div class="rpt" style="margin-top:13px;border-top:1px solid var(--rule);padding-top:11px">
+    <h4 style="margin-bottom:8px">장애 보고서</h4>
+    <dl>
+      <dt>장애명</dt><dd>${cur.title}</dd>
+      <dt>발생·인지</dt><dd>${cur.ticket.time} · ${cur.ticket.from}</dd>
+      <dt>서비스 영향</dt><dd>${cur.ticket.impact}</dd>
+      <dt>조사 경로</dt><dd>${used.map(k => L.PROBE_LABEL[k]).join(' → ')}</dd>
+      <dt>원인</dt><dd>${cur.causes.find(c=>c.ok).t}</dd>
+      <dt>조치</dt><dd>${f.t}</dd>
+      <dt>재발 방지</dt><dd>${cur.prevent}</dd>
+    </dl></div>`;
+}
+
+document.addEventListener('click', e => {
+  const s = e.target.closest('[data-s]');
+  if(s){ cur = L.SCENARIOS.find(x => x.id === s.dataset.s); used = []; cause = null; fix = null;
+         drawPicks(); drawStage(); return; }
+  const p = e.target.closest('[data-probe]'); if(p){ runProbe(p.dataset.probe); return; }
+  const c = e.target.closest('[data-cause]');
+  if(c){ cause = +c.dataset.cause;
+         term(`<span class="cmd">› 원인 판단: ${cur.causes[cause].t}</span>\n\n`); finish(); return; }
+  const x = e.target.closest('[data-fix]'); if(x){ fix = +x.dataset.fix; finish(); return; }
+  const f = e.target.closest('[data-f]'); if(f){ return; }
+});
+drawPicks();
+
+/* ── 감시 기준 ── */
+let thr = {...L.DEFAULT_THR};
+const THR_UI = [
+  ['CPU %', [['cpuW','주의'],['cpuC','조치']]],
+  ['메모리 %', [['memW','주의'],['memC','조치']]],
+  ['디스크 %', [['diskW','주의'],['diskC','조치']]],
+  ['트래픽 Mbps', [['netW','주의'],['netC','조치']]]
+];
+
+function drawThr(){
+  $('#thr').innerHTML = THR_UI.map(([name, rows]) => `
+    <fieldset><legend>${name}</legend>
+      ${rows.map(([k, label]) =>
+        `<label>${label}<input type="number" data-t="${k}" value="${thr[k]}" min="1" max="5000"></label>`).join('')}
+    </fieldset>`).join('');
+}
+
+function drawHosts(){
+  $('#hosts').innerHTML = L.HOSTS.map(h => {
+    const j = L.judge(h, thr);
+    const tag = j.level === 2 ? '<span class="tag c">조치 필요</span>'
+              : j.level === 1 ? '<span class="tag w">주의</span>'
+              : '<span class="tag ok">정상</span>';
+    return `<tr class="${j.level?'fire':''}">
+      <td class="m">${h.h}</td><td>${h.os}</td>
+      <td class="r">${h.cpu}%</td><td class="r">${h.mem}%</td>
+      <td class="r">${h.disk}%</td><td class="r">${h.net}M</td>
+      <td>${tag}${j.reasons.length?`<div style="font-size:11.5px;color:var(--soft)">${j.reasons.join(' · ')}</div>`:''}</td>
+    </tr>`;
+  }).join('');
+}
+
+function drawFires(){
+  const list = L.fires(thr);
+  const real = list.filter(f => f.real).length;
+  const noise = list.length - real;
+  $('#fires').innerHTML = list.map(f => {
+    const t = `23:${String(Math.floor(f.sec/60)).padStart(2,'0')}:${String(f.sec%60).padStart(2,'0')}`;
+    return `<tr class="${f.level===2?'fire':''}">
+      <td class="m">${t}</td><td class="m">${f.host}</td><td>${f.why}</td>
+      <td>${f.level===2?'<span class="tag c">조치 필요</span>':'<span class="tag w">주의</span>'}</td>
+      <td>${f.real ? '실제 조치 필요' : '<span style="color:var(--soft)">확인 후 종결(오탐)</span>'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="5" style="color:var(--soft)">현재 임계치에서는 발화가 없습니다. 놓치는 대상이 없는지 확인하십시오.</td></tr>';
+
+  const missed = L.HOSTS.filter(h => h.real && !L.judge(h, thr).level);
+  $('#fires').insertAdjacentHTML('beforeend', `<tr><td colspan="5" style="background:#F4F6F7">
+    발화 ${list.length}건 중 실제 조치 필요 ${real}건 · 오탐 ${noise}건
+    ${missed.length ? ` · <b style="color:var(--bad)">놓친 대상 ${missed.length}건 (${missed.map(m=>m.h).join(', ')})</b>`
+                    : ' · 놓친 대상 없음'}
+  </td></tr>`);
+}
+
+document.addEventListener('input', e => {
+  const t = e.target.closest('[data-t]');
+  if(!t) return;
+  const v = parseInt(t.value, 10);
+  if(!Number.isNaN(v)){ thr[t.dataset.t] = v; drawHosts(); drawFires(); }
+});
+drawThr(); drawHosts(); drawFires();
+
+/* ── 변경 요청 ── */
+let step = 0;
+function drawSteps(){
+  $('#steps').innerHTML = L.CHANGE.map((s, i) => `
+    <div class="step ${i < step ? 'on' : ''}">
+      <div class="n">${i + 1}</div>
+      <div><b>${s.t}</b><p>${s.d}</p>
+        ${i < step ? `<div class="out">${esc(s.o)}</div>` : ''}</div>
+    </div>`).join('');
+  $('#chg-next').textContent = step >= L.CHANGE.length ? '완료' : '다음 단계';
+  $('#chg-next').disabled = step >= L.CHANGE.length;
+}
+$('#chg-next').addEventListener('click', () => { if(step < L.CHANGE.length){ step++; drawSteps(); } });
+$('#chg-reset').addEventListener('click', () => { step = 0; drawSteps(); });
+drawSteps();
+})();
+</script>
+</body>
+</html>

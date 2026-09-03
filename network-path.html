@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>네트워크 경로 진단</title>
+<style>
+:root{
+  --room:#E7EAEC; --card:#FFF; --rule:#CBD2D8; --ink:#111A21; --soft:#5B6B77;
+  --dark:#101820; --ok:#26714A; --warn:#8F6512; --bad:#A63A2E; --link:#1F5D8C;
+  --mono:'IBM Plex Mono','D2Coding',ui-monospace,Consolas,monospace;
+  --sans:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--room);color:var(--ink);font-family:var(--sans);font-size:13.5px;line-height:1.55}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.top{background:var(--dark);color:#D3DBE1;padding:14px 20px}
+.top h1{font-size:20px;font-weight:600}
+.top p{font-size:12.5px;color:#8FA1AE;margin-top:4px;max-width:80ch}
+main{max-width:1180px;margin:0 auto;padding:18px 20px 40px}
+.card{background:var(--card);border:1px solid var(--rule);margin-bottom:15px}
+.card>h2{font-size:14px;font-weight:600;padding:9px 13px;border-bottom:1px solid var(--rule)}
+.pad{padding:14px}
+.note{font-size:12.5px;color:var(--soft);padding:10px 13px;border-top:1px solid var(--rule);line-height:1.7}
+
+/* 토폴로지 */
+.topo{display:flex;flex-direction:column;align-items:center;gap:0;font-family:var(--mono);font-size:12px}
+.node{border:1px solid var(--rule);background:var(--card);padding:7px 14px;min-width:170px;text-align:center;position:relative}
+.node b{display:block;font-size:12.5px}
+.node span{font-size:11px;color:var(--soft)}
+.node.hit{border-color:var(--ok);border-width:2px;background:#EFF6F2}
+.node.stop{border-color:var(--bad);border-width:2px;background:#FAEEEC}
+.node.skip{opacity:.45}
+.link{width:1px;height:22px;background:var(--rule)}
+.link.hit{background:var(--ok);width:2px} .link.stop{background:var(--bad);width:2px}
+.tier{display:flex;gap:14px}
+
+.ctl{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.ctl button{border:1px solid var(--rule);padding:5px 11px;font-family:var(--mono);font-size:12px;background:var(--card)}
+.ctl button:hover{background:#EFF3F5}
+.ctl.f button.on{background:var(--bad);color:#fff;border-color:var(--bad)}
+.term{background:var(--dark);color:#C7D3DB;font-family:var(--mono);font-size:12px;padding:13px;
+  height:320px;overflow:auto;line-height:1.7;white-space:pre-wrap}
+.term .p{color:#6FA8CE} .term .g{color:#8FC7A4} .term .r{color:#E2907F}
+.term .y{color:#D9B36A} .term .d{color:#6D7F8C}
+.grid{display:grid;grid-template-columns:1fr 1.05fr;gap:16px;align-items:start}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;padding:7px 9px;border-bottom:2px solid var(--rule);font-size:12px;background:#F4F6F7}
+td{padding:6px 9px;border-bottom:1px solid #EDF0F2}
+td.m{font-family:var(--mono);font-size:12px}
+.verdict{border:1px solid var(--rule);padding:12px 14px;margin-top:12px}
+.verdict.good{border-color:var(--ok);background:#EFF6F2}
+.verdict.bad{border-color:var(--bad);background:#FAEEEC}
+select{font:inherit;border:1px solid var(--rule);padding:5px 8px}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>네트워크 경로 진단</h1>
+  <p>인터넷에서 DB까지 이어지는 구간에 장애를 넣고, 어느 지점에서 끊기는지 찾는 연습입니다.
+     같은 "접속이 안 된다"는 증상도 끊기는 구간에 따라 조치가 완전히 달라집니다.</p>
+</div>
+
+<main>
+<div class="grid">
+  <div>
+    <div class="card"><h2>구성도</h2><div class="pad"><div class="topo" id="topo"></div></div>
+      <p class="note">굵은 초록은 통과한 구간, 굵은 빨강은 막힌 구간입니다. 아래 명령을 실행하면 표시가 갱신됩니다.</p>
+    </div>
+    <div class="card"><h2>장애 주입</h2><div class="pad">
+      <div class="ctl f" id="faults"></div>
+      <p style="color:var(--soft);font-size:12.5px">여러 개를 동시에 켤 수 있습니다. 가장 앞 구간에서 먼저 끊깁니다.</p>
+    </div></div>
+  </div>
+
+  <div>
+    <div class="card"><h2>진단 명령</h2>
+      <div class="pad" style="border-bottom:1px solid var(--rule)">
+        <div class="ctl" id="cmds"></div>
+        <label style="font-size:12.5px;color:var(--soft)">대상
+          <select id="dst"></select>
+        </label>
+      </div>
+      <div class="term" id="term"><span class="ph d">장애를 하나 켠 뒤 명령을 순서대로 실행해 보십시오.
+ping → 포트 → 방화벽 → DNS 순서가 일반적입니다.</span></div>
+    </div>
+    <div class="card"><h2>원인 판단</h2><div class="pad">
+      <div class="ctl" id="causes"></div>
+      <div id="verdict"></div>
+    </div></div>
+  </div>
+</div>
+
+<div class="card"><h2>방화벽 정책</h2>
+  <table><thead><tr><th>#</th><th>출발지</th><th>목적지</th><th>서비스</th><th>동작</th></tr></thead>
+  <tbody id="fw"></tbody></table>
+  <p class="note">정책은 위에서부터 순서대로 평가되며, 일치하는 첫 규칙이 적용됩니다. 마지막 줄이 명시적 차단입니다.</p>
+</div>
+</main>
+
+<script>
+/* ===ENGINE START=== */
+const NETSIM = (function(){
+'use strict';
+
+const NODES = [
+  {id:'inet', name:'Internet',  ip:'—',            role:'외부 구간'},
+  {id:'fw',   name:'FW-01',     ip:'203.0.113.1',  role:'방화벽'},
+  {id:'l4',   name:'L4-01',     ip:'10.10.10.10',  role:'로드밸런서 VIP'},
+  {id:'web1', name:'WEB01',     ip:'10.10.10.21',  role:'웹 서버'},
+  {id:'web2', name:'WEB02',     ip:'10.10.10.22',  role:'웹 서버'},
+  {id:'app',  name:'APP01',     ip:'10.10.20.21',  role:'애플리케이션'},
+  {id:'db',   name:'DB01',      ip:'10.10.30.11',  role:'데이터베이스'}
+];
+
+/* 경로: inet → fw → l4 → web → app → db */
+const PATH = ['inet','fw','l4','web1','app','db'];
+
+const FW_BASE = [
+  {s:'0.0.0.0/0',     d:'10.10.10.10/32', p:'tcp/443',  a:'ALLOW'},
+  {s:'0.0.0.0/0',     d:'10.10.10.10/32', p:'tcp/80',   a:'ALLOW'},
+  {s:'10.10.10.0/24', d:'10.10.20.21/32', p:'tcp/8443', a:'ALLOW'},
+  {s:'10.10.20.0/24', d:'10.10.30.11/32', p:'tcp/1521', a:'ALLOW'},
+  {s:'0.0.0.0/0',     d:'0.0.0.0/0',      p:'any',      a:'DENY'}
+];
+
+const DNS_BASE = {
+  'www.abc-fin.co.kr': '10.10.10.10',
+  'abc-fin.co.kr':     '10.10.10.10',
+  'api.abc-fin.co.kr': '10.10.20.21'
+};
+
+const FAULTS = {
+  fw443:    {label:'방화벽 443 DENY', hint:'ping은 되는데 443만 안 됨'},
+  dnsGone:  {label:'DNS 레코드 삭제', hint:'IP로는 되는데 도메인만 안 됨'},
+  l4member: {label:'L4 멤버 WEB01 다운', hint:'접속은 되는데 절반만 실패'},
+  routeGone:{label:'APP→DB 라우팅 누락', hint:'앞 구간은 정상, 뒤에서 끊김'},
+  mtu:      {label:'구간 MTU 불일치', hint:'작은 요청은 되고 큰 응답만 끊김'}
+};
+
+function fwTable(active){
+  const t = FW_BASE.map(r => ({...r}));
+  if(active.includes('fw443')) t[0].a = 'DENY';
+  return t;
+}
+
+function fwVerdict(table, dstIp, port){
+  for(const r of table){
+    const dOk = r.d === '0.0.0.0/0' || r.d.split('/')[0] === dstIp;
+    const pOk = r.p === 'any' || r.p === 'tcp/' + port;
+    if(dOk && pOk) return r;
+  }
+  return {a:'DENY', p:'any', d:'0.0.0.0/0', s:'0.0.0.0/0'};
+}
+
+function node(id){ return NODES.find(n => n.id === id); }
+
+/* 경로 어디까지 통과하는지 계산 */
+function trace(active, dstId, port){
+  const idx = PATH.indexOf(dstId);
+  const upto = idx < 0 ? PATH.length - 1 : idx;
+  const hops = [];
+  let blocked = null;
+
+  for(let i = 1; i <= upto; i++){
+    const id = PATH[i], n = node(id);
+    let ok = true, why = '';
+
+    if(id === 'l4' && active.includes('fw443') && port === 443){
+      const r = fwVerdict(fwTable(active), n.ip, port);
+      if(r.a === 'DENY'){ ok = false; why = '방화벽 정책 DENY (tcp/443)'; }
+    }
+    if(id === 'web1' && active.includes('l4member')){
+      ok = false; why = 'L4 멤버 상태 DOWN — 헬스체크 실패';
+    }
+    if(id === 'db' && active.includes('routeGone')){
+      ok = false; why = '10.10.30.0/24 경로 없음 — no route to host';
+    }
+    hops.push({id, name:n.name, ip:n.ip, ok, why});
+    if(!ok){ blocked = id; break; }
+  }
+  return {hops, blocked};
+}
+
+function ping(active, dstId){
+  const n = node(dstId);
+  if(dstId === 'db' && active.includes('routeGone'))
+    return {ok:false, out:`PING ${n.ip} → connect: Network is unreachable\n라우팅 테이블에 해당 대역 경로가 없습니다.`};
+  if(dstId === 'web1' && active.includes('l4member'))
+    return {ok:true, out:`PING ${n.ip} → 4 packets transmitted, 0% loss, avg 0.38ms\n서버 자체는 살아 있습니다. L4 멤버 상태와는 별개입니다.`};
+  return {ok:true, out:`PING ${n.ip} → 4 packets transmitted, 0% loss, avg 0.41ms`};
+}
+
+function tcp(active, dstId, port){
+  const n = node(dstId);
+  const t = trace(active, dstId, port);
+  if(t.blocked){
+    const h = t.hops.find(x => !x.ok);
+    return {ok:false, out:`nc -vz ${n.ip} ${port} → failed\n막힌 지점: ${node(h.id).name} — ${h.why}`};
+  }
+  if(active.includes('mtu') && port === 443)
+    return {ok:false, out:`nc -vz ${n.ip} ${port} → succeeded\n다만 대용량 응답에서 세션이 끊깁니다. 핸드셰이크는 성공했습니다.`};
+  return {ok:true, out:`nc -vz ${n.ip} ${port} → succeeded (0.28s)`};
+}
+
+function dig(active, name){
+  if(active.includes('dnsGone') && name === 'www.abc-fin.co.kr')
+    return {ok:false, out:`dig ${name} → status: NXDOMAIN\n존 파일에 A 레코드가 없습니다.`};
+  const ip = DNS_BASE[name];
+  return ip ? {ok:true, out:`dig ${name} → ${ip}  (A, TTL 300)`}
+            : {ok:false, out:`dig ${name} → status: NXDOMAIN`};
+}
+
+function traceroute(active, dstId, port){
+  const t = trace(active, dstId, port);
+  const lines = t.hops.map((h, i) =>
+    ` ${i + 1}  ${h.name.padEnd(9)} ${h.ip.padEnd(15)} ${h.ok ? (0.3 + i * 0.4).toFixed(2) + ' ms' : '* * *  ' + h.why}`);
+  if(!t.blocked) lines.push(` ${t.hops.length + 1}  목적지 도달`);
+  return {ok:!t.blocked, out:`traceroute to ${node(dstId).name}\n` + lines.join('\n')};
+}
+
+function l4status(active){
+  const rows = [
+    ['WEB01', '10.10.10.21', active.includes('l4member') ? 'DOWN' : 'UP'],
+    ['WEB02', '10.10.10.22', 'UP']
+  ];
+  const up = rows.filter(r => r[2] === 'UP').length;
+  return {ok:up === rows.length,
+    out:`VIP 10.10.10.10:443  멤버 ${up}/${rows.length} UP\n` +
+        rows.map(r => `  ${r[0].padEnd(7)} ${r[1].padEnd(15)} ${r[2]}`).join('\n') +
+        (up < rows.length ? '\n일부 요청만 실패하는 증상이 나타납니다.' : '')};
+}
+
+function mtuTest(active){
+  return active.includes('mtu')
+    ? {ok:false, out:`ping -M do -s 1472 10.10.20.21 → Frag needed and DF set (mtu = 1400)\n구간 MTU가 1400으로 낮습니다. 큰 패킷만 폐기됩니다.`}
+    : {ok:true, out:`ping -M do -s 1472 10.10.20.21 → 정상 응답 (MTU 1500 통과)`};
+}
+
+function routeTable(active){
+  const rows = [
+    ['10.10.10.0/24', 'eth0', 'connected'],
+    ['10.10.20.0/24', 'eth1', 'static via 10.10.10.1']
+  ];
+  if(!active.includes('routeGone')) rows.push(['10.10.30.0/24', 'eth1', 'static via 10.10.20.1']);
+  return {ok:!active.includes('routeGone'),
+    out:`Destination      Iface   Next hop\n` +
+        rows.map(r => `${r[0].padEnd(17)}${r[1].padEnd(8)}${r[2]}`).join('\n') +
+        (active.includes('routeGone') ? '\n10.10.30.0/24 경로가 없습니다.' : '')};
+}
+
+/* 각 장애의 정답 원인 */
+const CAUSES = [
+  {id:'fw443',    t:'방화벽에서 443이 차단됨'},
+  {id:'dnsGone',  t:'DNS A 레코드 누락'},
+  {id:'l4member', t:'L4 멤버 한 대가 DOWN'},
+  {id:'routeGone',t:'목적지 대역 라우팅 누락'},
+  {id:'mtu',      t:'구간 MTU 불일치'}
+];
+
+function judge(active, picked){
+  if(!active.length) return {ok:false, msg:'장애를 먼저 주입하십시오.'};
+  const right = active.slice().sort();
+  const got = picked.slice().sort();
+  const same = right.length === got.length && right.every((v, i) => v === got[i]);
+  return {ok:same, right, got,
+    msg: same ? '주입된 장애를 모두 정확히 짚었습니다.'
+              : `주입된 장애는 ${right.map(k => FAULTS[k].label).join(', ')} 입니다.`};
+}
+
+return {NODES, PATH, FAULTS, CAUSES, FW_BASE, DNS_BASE,
+        fwTable, fwVerdict, trace, ping, tcp, dig, traceroute, l4status, mtuTest, routeTable, judge, node};
+})();
+/* ===ENGINE END=== */
+
+if(typeof module !== 'undefined') module.exports = NETSIM;
+if(typeof document !== 'undefined') (function(){
+'use strict';
+const N = NETSIM;
+const $ = s => document.querySelector(s);
+let active = [], picked = [], lastTrace = null;
+
+function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function drawTopo(){
+  const state = {};
+  if(lastTrace){
+    lastTrace.hops.forEach(h => { state[h.id] = h.ok ? 'hit' : 'stop'; });
+    if(lastTrace.hops.length) state['inet'] = 'hit';
+  }
+  const cellsFor = id => {
+    if(id === 'web1') return ['web1','web2'];
+    return [id];
+  };
+  const seen = new Set();
+  let html = '';
+  N.PATH.forEach((id, i) => {
+    if(seen.has(id)) return;
+    const ids = cellsFor(id);
+    ids.forEach(x => seen.add(x));
+    const tier = ids.map(x => {
+      const n = N.node(x);
+      const cls = state[x] || (lastTrace ? 'skip' : '');
+      return `<div class="node ${cls}"><b>${n.name}</b><span>${n.ip} · ${n.role}</span></div>`;
+    }).join('');
+    html += `<div class="tier">${tier}</div>`;
+    if(i < N.PATH.length - 1){
+      const nxt = N.PATH[i + 1];
+      const lc = state[nxt] === 'hit' ? 'hit' : state[nxt] === 'stop' ? 'stop' : '';
+      html += `<div class="link ${lc}"></div>`;
+    }
+  });
+  $('#topo').innerHTML = html;
+}
+
+function drawFaults(){
+  $('#faults').innerHTML = Object.entries(N.FAULTS).map(([k, f]) =>
+    `<button class="${active.includes(k) ? 'on' : ''}" data-f="${k}" title="${f.hint}">${f.label}</button>`).join('');
+}
+
+const CMDS = [
+  ['ping', 'ping'], ['tcp443', 'nc -vz 443'], ['tcp8443', 'nc -vz 8443'],
+  ['dig', 'dig 도메인'], ['trace', 'traceroute'], ['l4', 'L4 멤버 상태'],
+  ['route', '라우팅 테이블'], ['mtu', 'MTU 확인'], ['fw', '방화벽 조회']
+];
+
+function drawCmds(){
+  $('#cmds').innerHTML = CMDS.map(([k, l]) => `<button data-c="${k}">${l}</button>`).join('');
+  $('#dst').innerHTML = N.PATH.slice(1).map(id => {
+    const n = N.node(id);
+    return `<option value="${id}"${id === 'app' ? ' selected' : ''}>${n.name} (${n.ip})</option>`;
+  }).join('');
+}
+
+function drawCauses(){
+  $('#causes').innerHTML = N.CAUSES.map(c =>
+    `<button class="${picked.includes(c.id) ? 'on' : ''}" data-cz="${c.id}"
+      style="font-family:var(--sans);${picked.includes(c.id)?'background:var(--ink);color:#fff;border-color:var(--ink)':''}">${c.t}</button>`
+  ).join('') + '<button data-judge="1" style="font-family:var(--sans);border-color:var(--ink)">판단 제출</button>';
+}
+
+function drawFw(){
+  $('#fw').innerHTML = N.fwTable(active).map((r, i) => `<tr${r.a === 'DENY' && i === 0 ? ' style="background:#FAEEEC"' : ''}>
+    <td class="m">${i + 1}</td><td class="m">${r.s}</td><td class="m">${r.d}</td>
+    <td class="m">${r.p}</td><td class="m">${r.a}</td></tr>`).join('');
+}
+
+function term(html){
+  const t = $('#term');
+  if(t.querySelector('.ph')) t.innerHTML = '';
+  t.insertAdjacentHTML('beforeend', html);
+  t.scrollTop = t.scrollHeight;
+}
+
+function out(label, r){
+  const body = esc(r.out)
+    .replace(/succeeded|정상 응답|0% loss|목적지 도달/g, m => `<span class="g">${m}</span>`)
+    .replace(/failed|NXDOMAIN|unreachable|DOWN|DENY|Frag needed/g, m => `<span class="r">${m}</span>`);
+  term(`<span class="p">› ${label}</span>\n${body}\n\n`);
+}
+
+function exec(key){
+  const dst = $('#dst').value;
+  switch(key){
+    case 'ping':    out('ping ' + N.node(dst).name, N.ping(active, dst)); break;
+    case 'tcp443':  out('nc -vz ' + N.node(dst).ip + ' 443', N.tcp(active, dst, 443)); break;
+    case 'tcp8443': out('nc -vz ' + N.node(dst).ip + ' 8443', N.tcp(active, dst, 8443)); break;
+    case 'dig':     out('dig www.abc-fin.co.kr', N.dig(active, 'www.abc-fin.co.kr')); break;
+    case 'trace': {
+      const r = N.traceroute(active, dst, 443);
+      lastTrace = N.trace(active, dst, 443);
+      out('traceroute ' + N.node(dst).name, r); drawTopo(); break;
+    }
+    case 'l4':      out('L4 멤버 상태', N.l4status(active)); break;
+    case 'route':   out('라우팅 테이블', N.routeTable(active)); break;
+    case 'mtu':     out('MTU 확인', N.mtuTest(active)); break;
+    case 'fw':
+      out('방화벽 정책 조회', {out:'아래 표에서 현재 정책을 확인하십시오. 일치하는 첫 규칙이 적용됩니다.'});
+      drawFw(); break;
+  }
+}
+
+document.addEventListener('click', e => {
+  const f = e.target.closest('[data-f]');
+  if(f){
+    const k = f.dataset.f;
+    active = active.includes(k) ? active.filter(x => x !== k) : active.concat(k);
+    lastTrace = null; picked = [];
+    drawFaults(); drawFw(); drawTopo(); drawCauses();
+    $('#verdict').innerHTML = '';
+    term(`<span class="y">— ${N.FAULTS[k].label} ${active.includes(k) ? '적용' : '해제'} —</span>\n` +
+         `<span class="d">${N.FAULTS[k].hint}</span>\n\n`);
+    return;
+  }
+  const c = e.target.closest('[data-c]'); if(c){ exec(c.dataset.c); return; }
+  const z = e.target.closest('[data-cz]');
+  if(z){ const k = z.dataset.cz;
+         picked = picked.includes(k) ? picked.filter(x => x !== k) : picked.concat(k);
+         drawCauses(); return; }
+  if(e.target.closest('[data-judge]')){
+    const v = N.judge(active, picked);
+    $('#verdict').innerHTML = `<div class="verdict ${v.ok ? 'good' : 'bad'}">${v.msg}</div>`;
+  }
+});
+
+drawTopo(); drawFaults(); drawCmds(); drawCauses(); drawFw();
+})();
+</script>
+</body>
+</html>

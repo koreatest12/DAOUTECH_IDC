@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>서버 운영 콘솔</title>
+<style>
+:root{
+  --room:#E7EAEC; --card:#FFF; --rule:#CBD2D8; --ink:#111A21; --soft:#5B6B77;
+  --term:#101820; --ok:#26714A; --warn:#8F6512; --bad:#A63A2E; --link:#1F5D8C;
+  --mono:'IBM Plex Mono','D2Coding',ui-monospace,Consolas,monospace;
+  --sans:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--room);color:var(--ink);font-family:var(--sans);font-size:13.5px;line-height:1.55}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+.top{background:var(--term);color:#D3DBE1;padding:14px 20px}
+.top h1{font-size:20px;font-weight:600}
+.top p{font-size:12.5px;color:#8FA1AE;margin-top:4px;max-width:80ch}
+main{max-width:1200px;margin:0 auto;padding:18px 20px 40px;display:grid;
+  grid-template-columns:270px 1fr;gap:16px;align-items:start}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--rule);margin-bottom:14px}
+.card>h2{font-size:14px;font-weight:600;padding:9px 13px;border-bottom:1px solid var(--rule)}
+.pad{padding:12px 13px}
+.note{font-size:12.5px;color:var(--soft);padding:10px 13px;border-top:1px solid var(--rule);line-height:1.7}
+
+.srv{width:100%;text-align:left;border:1px solid var(--rule);border-left-width:3px;padding:8px 10px;margin-bottom:6px;background:var(--card)}
+.srv:hover{background:#F1F4F6}
+.srv.on{border-color:var(--ink);background:#EEF2F5}
+.srv.ok{border-left-color:var(--ok)} .srv.warn{border-left-color:var(--warn)}
+.srv.crit{border-left-color:var(--bad)}
+.srv b{display:block;font-family:var(--mono);font-size:12.5px}
+.srv span{font-size:11.5px;color:var(--soft)}
+.srv .st{float:right;font-size:11px}
+.st.ok{color:var(--ok)} .st.warn{color:var(--warn)} .st.crit{color:var(--bad)}
+
+.cmds{display:flex;flex-wrap:wrap;gap:5px}
+.cmds button{border:1px solid var(--rule);padding:4px 9px;font-family:var(--mono);font-size:12px;background:var(--card)}
+.cmds button:hover{background:#EFF3F5}
+.cmds button:disabled{opacity:.35;cursor:not-allowed}
+.term{background:var(--term);color:#C7D3DB;font-family:var(--mono);font-size:12px;padding:13px;
+  height:480px;overflow:auto;line-height:1.65;white-space:pre-wrap}
+.term .p{color:#6FA8CE} .term .g{color:#8FC7A4} .term .r{color:#E2907F}
+.term .y{color:#D9B36A} .term .d{color:#6D7F8C}
+.bar{display:flex;gap:6px;padding:9px 13px;border-top:1px solid var(--rule);align-items:center}
+.bar input{flex:1;font-family:var(--mono);font-size:12.5px;border:1px solid var(--rule);padding:6px 9px}
+.bar button{border:1px solid var(--ink);background:var(--ink);color:#fff;padding:6px 13px;font-size:12.5px}
+.faults{display:flex;flex-wrap:wrap;gap:6px}
+.faults button{border:1px solid var(--rule);padding:5px 10px;font-size:12px;background:var(--card)}
+.faults button.on{background:var(--bad);color:#fff;border-color:var(--bad)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>서버 운영 콘솔</h1>
+  <p>리눅스와 윈도우 서버를 골라 명령을 실행해 상태를 확인합니다. 장애를 주입하면 같은 명령의 결과가 바뀌므로,
+     어떤 명령을 어떤 순서로 치는지가 원인을 좁히는 속도를 정합니다.</p>
+</div>
+
+<main>
+  <div>
+    <div class="card"><h2>서버</h2><div class="pad" id="list"></div>
+      <p class="note">왼쪽 색 막대가 현재 상태입니다. 장애 주입 후 다시 확인해 보십시오.</p>
+    </div>
+    <div class="card"><h2>장애 주입</h2><div class="pad"><div class="faults" id="faults"></div></div></div>
+  </div>
+
+  <div class="card">
+    <h2 id="host">서버를 고르십시오</h2>
+    <div class="pad" style="border-bottom:1px solid var(--rule)"><div class="cmds" id="cmds"></div></div>
+    <div class="term" id="term"><span class="ph d">서버를 고른 뒤 명령 버튼을 누르거나 아래에 직접 입력하십시오.</span></div>
+    <div class="bar">
+      <input id="in" placeholder="명령 입력 (help 로 목록 확인)" autocomplete="off">
+      <button id="go">실행</button>
+      <button id="clr" style="background:none;color:var(--ink);border-color:var(--rule)">지우기</button>
+    </div>
+  </div>
+</main>
+
+<script>
+/* ===ENGINE START=== */
+const CONSOLE_SIM = (function(){
+'use strict';
+
+function base(){
+  return {
+    'web-front01': {os:'linux', ip:'10.10.10.21', role:'웹 서버', up:'42일 3시간',
+      cpu:12, mem:38, cores:4, loads:[0.41,0.38,0.35],
+      fs:[['/',42,58],['/var',37,26],['/data',61,140]],
+      procs:[['nginx',1204,0.4,180],['php-fpm',1310,1.2,640],['node_exporter',980,0.1,42]],
+      svcs:[['nginx','running'],['php-fpm','running'],['sshd','running'],['chronyd','running']],
+      ports:[[80,'nginx','0.0.0.0'],[443,'nginx','0.0.0.0'],[22,'sshd','0.0.0.0'],[9100,'node_exporter','0.0.0.0']],
+      logs:['08:14:02 systemd[1]: Started Session 442 of user deploy.',
+            '08:00:01 CROND[3400]: (root) CMD (/usr/local/bin/logrotate.sh)',
+            '07:31:18 chronyd[812]: Selected source 10.99.0.5']},
+
+    'app-batch02': {os:'linux', ip:'10.10.20.22', role:'배치 서버', up:'17일 9시간',
+      cpu:31, mem:54, cores:4, loads:[1.22,1.08,0.95],
+      fs:[['/',38,72],['/app',55,88],['/app/logs',48,52]],
+      procs:[['java',3812,22.4,3100],['batch-agent',2210,0.8,210],['sshd',1120,0.0,12]],
+      svcs:[['batch-agent','running'],['sshd','running'],['firewalld','running']],
+      ports:[[8443,'java','0.0.0.0'],[22,'sshd','0.0.0.0']],
+      logs:['02:31:44 batch-agent: JOB_SETTLE_B started (input 340,120 rows)',
+            '02:05:11 batch-agent: JOB_SETTLE_A completed in 11m 42s',
+            '01:00:03 systemd[1]: Started Daily Cleanup.']},
+
+    'db-ora01': {os:'linux', ip:'10.10.30.11', role:'DB 서버', up:'91일 14시간',
+      cpu:44, mem:68, cores:8, loads:[2.81,2.60,2.44],
+      fs:[['/',31,140],['/u01',68,190],['/u01/archive',29,620]],
+      procs:[['ora_pmon',2010,0.3,410],['ora_dbw0',2016,1.9,880],['ora_lgwr',2020,2.2,320]],
+      svcs:[['oracle','running'],['sshd','running'],['chronyd','running']],
+      ports:[[1521,'tnslsnr','0.0.0.0'],[22,'sshd','0.0.0.0']],
+      logs:['06:00:02 oracle: archive log 4412 written',
+            '03:14:55 kernel: nfs: server 10.99.0.20 not responding, retrying',
+            '02:00:01 oracle: RMAN incremental level 1 completed']},
+
+    'win-ad01': {os:'windows', ip:'10.10.40.10', role:'AD·파일 서버', up:'23일 6시간',
+      cpu:18, mem:58, cores:4, loads:null,
+      fs:[['C:\\',47,52],['D:\\',63,180]],
+      procs:[['lsass',712,1.1,142],['sqlservr',2204,4.2,2600],['MsMpEng',1980,2.8,310]],
+      svcs:[['NTDS','Running'],['DNS','Running'],['LanmanServer','Running'],['W32Time','Running']],
+      ports:[[389,'lsass','0.0.0.0'],[445,'System','0.0.0.0'],[53,'dns','0.0.0.0'],[3389,'TermService','0.0.0.0']],
+      logs:['09:02:11 Directory Service: replication cycle completed',
+            '08:44:03 Service Control Manager: W32Time entered running state',
+            '06:00:00 Backup: system state backup succeeded']},
+
+    'cdn-cache01': {os:'linux', ip:'10.10.10.31', role:'캐시 서버', up:'8일 2시간',
+      cpu:58, mem:71, cores:8, loads:[3.90,3.62,3.41],
+      fs:[['/',22,180],['/cache',77,420]],
+      procs:[['nginx',1102,18.2,940],['varnishd',1150,26.4,4200],['sshd',980,0.0,11]],
+      svcs:[['nginx','running'],['varnish','running'],['sshd','running']],
+      ports:[[80,'nginx','0.0.0.0'],[443,'nginx','0.0.0.0'],[6081,'varnishd','127.0.0.1']],
+      logs:['09:10:44 varnishd: cache hit ratio 91.2% (last 5m)',
+            '08:55:02 nginx: upstream response time 0.14s avg',
+            '04:00:01 CROND: cache purge completed']},
+
+    'bkp-master01': {os:'linux', ip:'10.10.50.10', role:'백업 마스터', up:'64일 18시간',
+      cpu:22, mem:41, cores:8, loads:[0.94,1.10,1.21],
+      fs:[['/',29,90],['/msdp',74,6200],['/var/log',44,38]],
+      procs:[['nbpem',1810,1.4,510],['bpdbm',1822,0.9,380],['sshd',1010,0.0,12]],
+      svcs:[['netbackup','running'],['sshd','running']],
+      ports:[[1556,'pbx_exchange','0.0.0.0'],[13724,'vnetd','0.0.0.0'],[22,'sshd','0.0.0.0']],
+      logs:['05:12:08 bpdbm: image catalog cleanup removed 41 expired images',
+            '02:04:33 nbpem: policy WAS_FS scheduled',
+            '01:00:00 nbpem: backup window opened']}
+  };
+}
+
+/* 장애는 서버 상태를 실제로 바꾼다. 명령 결과는 상태에서 파생되므로 따로 손대지 않는다. */
+const FAULTS = {
+  cpu_spike:   {label:'app-batch02 CPU 급등', host:'app-batch02', apply(s){
+    s.cpu = 97; s.loads = [14.2, 11.8, 7.4];
+    s.procs[0] = ['java', 3812, 91.4, 5900];
+    s.logs.unshift('23:48:12 batch-agent: DB Connection Pool Exhausted (active=50 idle=0 waiting=137)',
+                   '23:46:04 batch-agent: HikariPool-1 - Connection is not available (30000ms)',
+                   '23:44:51 batch-agent: TimeoutException: could not get connection');
+  }},
+  disk_full:   {label:'db-ora01 /u01 포화', host:'db-ora01', apply(s){
+    s.fs[1] = ['/u01', 97, 12];
+    s.logs.unshift('03:22:41 oracle: ORA-19809 limit exceeded for recovery files',
+                   '03:20:02 kernel: EXT4-fs warning: /u01 filesystem is nearly full');
+  }},
+  svc_down:    {label:'web-front01 nginx 정지', host:'web-front01', apply(s){
+    s.svcs[0] = ['nginx', 'failed'];
+    s.procs = s.procs.filter(p => p[0] !== 'nginx');
+    s.ports = s.ports.filter(p => p[1] !== 'nginx');
+    s.logs.unshift('09:14:22 systemd[1]: nginx.service: Failed with result exit-code.',
+                   '09:14:21 nginx: [emerg] bind() to 0.0.0.0:443 failed (98: Address in use)');
+  }},
+  mem_leak:    {label:'cdn-cache01 메모리 누수', host:'cdn-cache01', apply(s){
+    s.mem = 94; s.procs[1] = ['varnishd', 1150, 31.2, 14800];
+    s.logs.unshift('09:31:05 kernel: varnishd invoked oom-killer: order=0',
+                   '09:20:11 varnishd: nuked 41200 objects to free space');
+  }},
+  win_svc:     {label:'win-ad01 DNS 서비스 정지', host:'win-ad01', apply(s){
+    s.svcs[1] = ['DNS', 'Stopped'];
+    s.ports = s.ports.filter(p => p[0] !== 53);
+    s.logs.unshift('09:40:12 Service Control Manager: The DNS Server service terminated unexpectedly.');
+  }}
+};
+
+function build(active){
+  const hosts = base();
+  for(const key of active){
+    const f = FAULTS[key];
+    if(f && hosts[f.host]) f.apply(hosts[f.host]);
+  }
+  return hosts;
+}
+
+function health(s){
+  const disk = Math.max(...s.fs.map(f => f[1]));
+  const down = s.svcs.some(v => /failed|Stopped/i.test(v[1]));
+  if(down || s.cpu >= 90 || s.mem >= 90 || disk >= 90) return 'crit';
+  if(s.cpu >= 75 || s.mem >= 75 || disk >= 80) return 'warn';
+  return 'ok';
+}
+
+function pct(n, w = 20){
+  const on = Math.round(Math.min(100, n) / 100 * w);
+  return '[' + '#'.repeat(on) + '.'.repeat(w - on) + ']';
+}
+const padR = (t, n) => String(t).padEnd(n);
+const padL = (t, n) => String(t).padStart(n);
+
+/* 명령 정의 — 리눅스와 윈도우가 같은 의미의 다른 명령을 갖는다 */
+const CMDS = {
+  linux: {
+    'uptime':        s => `up ${s.up},  load average: ${s.loads.map(x=>x.toFixed(2)).join(', ')}  (cores ${s.cores})\n` +
+                          `코어당 환산 ${(s.loads[0]/s.cores*100).toFixed(0)}%`,
+    'top':           s => `Tasks: ${s.procs.length + 118} total\n%Cpu(s): ${s.cpu}.0 us,  ${(100-s.cpu).toFixed(1)} id\n` +
+                          `MiB Mem : ${s.mem}% used\n\n` +
+                          `  PID  %CPU   RES(M)  COMMAND\n` +
+                          s.procs.map(p => `${padL(p[1],5)} ${padL(p[2].toFixed(1),5)} ${padL(p[3],8)}  ${p[0]}`).join('\n'),
+    'free -m':       s => `              total    used    free\nMem:          16384   ${padL(Math.round(163.84*s.mem),5)}   ${padL(16384-Math.round(163.84*s.mem),5)}\n` +
+                          `사용률 ${s.mem}% ${pct(s.mem)}`,
+    'df -h':         s => `Filesystem      Use%  Avail  Mounted on\n` +
+                          s.fs.map(f => `${padR(('/dev/mapper/vg-'+f[0].replace(/\W/g,'')||'root').slice(0,16),16)} ${padL(f[1]+'%',4)}  ${padL(f[2]+'G',5)}  ${f[0]}` +
+                            (f[1] >= 90 ? '   ← 임계 초과' : f[1] >= 80 ? '   ← 주의' : '')).join('\n'),
+    'ps aux --sort=-%cpu': s => `USER   PID  %CPU   RSS(M)  COMMAND\n` +
+                          s.procs.map(p => `root  ${padL(p[1],5)} ${padL(p[2].toFixed(1),5)} ${padL(p[3],8)}  ${p[0]}`).join('\n'),
+    'systemctl status': s => s.svcs.map(v =>
+                          `● ${padR(v[0]+'.service',22)} ${v[1] === 'running' ? 'active (running)' : 'failed'}`).join('\n'),
+    'ss -tlnp':      s => `State   Local Address:Port   Process\n` +
+                          s.ports.map(p => `LISTEN  ${padR(p[2]+':'+p[0],22)} ${p[1]}`).join('\n'),
+    'tail -n 5 /var/log/messages': s => s.logs.slice(0,5).map(l => l).join('\n'),
+    'ip a':          s => `2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500\n    inet ${s.ip}/24 brd ${s.ip.replace(/\d+$/,'255')} scope global eth0`,
+    'help':          () => '사용 가능: ' + Object.keys(CMDS.linux).filter(k => k !== 'help').join(' / ')
+  },
+  windows: {
+    'systeminfo':    s => `Host Name:      ${'(선택 서버)'}\nOS:             Windows Server 2022 Standard\nSystem Uptime:  ${s.up}\nProcessors:     ${s.cores}\nMemory Usage:   ${s.mem}% ${pct(s.mem)}`,
+    'Get-Process':   s => `Handles   CPU(s)   WS(MB)  Id     ProcessName\n` +
+                          s.procs.map(p => `${padL(320+p[1]%400,7)} ${padL(p[2].toFixed(1),8)} ${padL(p[3],8)}  ${padR(p[1],6)} ${p[0]}`).join('\n'),
+    'Get-Volume':    s => `DriveLetter  Used%   SizeRemaining\n` +
+                          s.fs.map(f => `${padR(f[0],13)}${padL(f[1]+'%',5)}   ${padL(f[2]+' GB',9)}` +
+                            (f[1] >= 90 ? '   ← 임계 초과' : f[1] >= 80 ? '   ← 주의' : '')).join('\n'),
+    'Get-Service':   s => `Status    Name\n` + s.svcs.map(v => `${padR(v[1],10)}${v[0]}`).join('\n'),
+    'Get-NetTCPConnection -State Listen': s => `LocalAddress   LocalPort  OwningProcess\n` +
+                          s.ports.map(p => `${padR(p[2],15)}${padR(p[0],11)}${p[1]}`).join('\n'),
+    'Get-EventLog -Newest 5': s => s.logs.slice(0,5).join('\n'),
+    'Get-Counter CPU': s => `\\Processor(_Total)\\% Processor Time : ${s.cpu}.0\n${pct(s.cpu)}`,
+    'ipconfig':      s => `Ethernet adapter Ethernet0:\n   IPv4 Address. . . : ${s.ip}\n   Subnet Mask . . . : 255.255.255.0`,
+    'help':          () => '사용 가능: ' + Object.keys(CMDS.windows).filter(k => k !== 'help').join(' / ')
+  }
+};
+
+function run(host, state, raw){
+  const cmd = raw.trim();
+  if(!cmd) return null;
+  const set = CMDS[state.os];
+  if(set[cmd]) return {ok:true, out:set[cmd](state)};
+  const near = Object.keys(set).find(k => k.toLowerCase().startsWith(cmd.toLowerCase()));
+  if(near) return {ok:true, out:set[near](state), used:near};
+  return {ok:false, out:`${state.os === 'windows' ? "'" + cmd + "' is not recognized." : cmd + ': command not found'}\nhelp 를 입력하면 사용 가능한 명령을 볼 수 있습니다.`};
+}
+
+return {base, FAULTS, build, health, run, CMDS};
+})();
+/* ===ENGINE END=== */
+
+if(typeof module !== 'undefined') module.exports = CONSOLE_SIM;
+if(typeof document !== 'undefined') (function(){
+'use strict';
+const C = CONSOLE_SIM;
+const $ = s => document.querySelector(s);
+let active = [], hosts = C.build(active), cur = null;
+
+function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+function drawList(){
+  $('#list').innerHTML = Object.entries(hosts).map(([name, s]) => {
+    const h = C.health(s);
+    const label = h === 'ok' ? '정상' : h === 'warn' ? '주의' : '조치 필요';
+    return `<button class="srv ${h} ${cur === name ? 'on' : ''}" data-h="${name}">
+      <span class="st ${h}">${label}</span>
+      <b>${name}</b><span>${s.role} · ${s.os === 'linux' ? 'Linux' : 'Windows'} · ${s.ip}</span>
+    </button>`;
+  }).join('');
+}
+
+function drawCmds(){
+  if(!cur){ $('#cmds').innerHTML = '<span style="color:var(--soft)">서버를 먼저 고르십시오.</span>'; return; }
+  const keys = Object.keys(C.CMDS[hosts[cur].os]).filter(k => k !== 'help');
+  $('#cmds').innerHTML = keys.map(k => `<button data-c="${esc(k)}">${esc(k)}</button>`).join('');
+}
+
+function drawFaults(){
+  $('#faults').innerHTML = Object.entries(C.FAULTS).map(([k, f]) =>
+    `<button class="${active.includes(k) ? 'on' : ''}" data-f="${k}">${f.label}</button>`).join('');
+}
+
+function term(html){
+  const t = $('#term');
+  if(t.querySelector('.ph')) t.innerHTML = '';
+  t.insertAdjacentHTML('beforeend', html);
+  t.scrollTop = t.scrollHeight;
+}
+
+function exec(raw){
+  if(!cur){ term('<span class="r">서버를 먼저 고르십시오.</span>\n\n'); return; }
+  const s = hosts[cur];
+  const prompt = s.os === 'windows' ? `PS C:\\> ` : `[root@${cur} ~]# `;
+  const r = C.run(cur, s, raw);
+  if(!r) return;
+  let out = esc(r.out);
+  out = out.replace(/← 임계 초과/g, '<span class="r">← 임계 초과</span>')
+           .replace(/← 주의/g, '<span class="y">← 주의</span>')
+           .replace(/failed|Stopped/g, m => `<span class="r">${m}</span>`)
+           .replace(/active \(running\)|Running|running/g, m => `<span class="g">${m}</span>`);
+  term(`<span class="p">${prompt}</span>${esc(r.used || raw)}\n${out}\n\n`);
+}
+
+document.addEventListener('click', e => {
+  const h = e.target.closest('[data-h]');
+  if(h){ cur = h.dataset.h; $('#host').textContent = `${cur} · ${hosts[cur].role} · ${hosts[cur].ip}`;
+         drawList(); drawCmds(); return; }
+  const c = e.target.closest('[data-c]'); if(c){ exec(c.dataset.c); return; }
+  const f = e.target.closest('[data-f]');
+  if(f){
+    const k = f.dataset.f;
+    active = active.includes(k) ? active.filter(x => x !== k) : active.concat(k);
+    hosts = C.build(active);
+    drawList(); drawFaults();
+    term(`<span class="y">— 장애 주입 상태 변경: ${C.FAULTS[k].label} ${active.includes(k) ? '적용' : '해제'} —</span>\n` +
+         `<span class="d">같은 명령을 다시 실행해 결과가 어떻게 달라지는지 확인하십시오.</span>\n\n`);
+  }
+});
+$('#go').addEventListener('click', () => { exec($('#in').value); $('#in').value = ''; });
+$('#in').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){ exec($('#in').value); $('#in').value = ''; }
+});
+$('#clr').addEventListener('click', () => {
+  $('#term').innerHTML = '<span class="ph d">지웠습니다.</span>';
+});
+
+drawList(); drawCmds(); drawFaults();
+})();
+</script>
+</body>
+</html>

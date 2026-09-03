@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IDC 상면 관제 콘솔</title>
+<style>
+:root{
+  --cold:#EDF0F2;        /* 콜드아일 회백 */
+  --panel:#FFFFFF;
+  --rail:#D3DAE0;        /* 랙 레일 */
+  --steel:#2B3A47;       /* 장비 전면 패널 */
+  --ink:#16212B;
+  --ink-soft:#5D6E7C;
+  --link:#1F6FB2;        /* UP / 링크 */
+  --warn:#B87309;
+  --alarm:#B3352B;
+  --ok:#2C7A52;
+  --idle:#97A6B2;
+  --sans:'Barlow Semi Condensed','Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+  --body:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+  --num:'IBM Plex Mono','D2Coding',ui-monospace,Consolas,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--cold);color:var(--ink);font-family:var(--body);font-size:14px}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+
+/* 헤더 — 랙 상단 명판 */
+.bar{background:var(--steel);color:#DCE4EA;display:flex;align-items:center;gap:18px;padding:0 20px;height:56px}
+.bar h1{font-family:var(--sans);font-size:22px;font-weight:600;letter-spacing:.4px}
+.bar .site{border-left:1px solid #46586A;padding-left:18px;font-size:13px;color:#9DB0C0}
+.bar .grow{flex:1}
+.clock{font-family:var(--num);font-size:13px;color:#B9CAD8}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(44,122,82,.6);animation:beat 2.4s infinite}
+@keyframes beat{70%{box-shadow:0 0 0 7px rgba(44,122,82,0)}100%{box-shadow:0 0 0 0 rgba(44,122,82,0)}}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none}}
+
+.wrap{display:grid;grid-template-columns:1fr 320px;gap:16px;padding:16px;align-items:start}
+@media(max-width:1020px){.wrap{grid-template-columns:1fr}}
+
+/* 요약 스트립 */
+.strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--rail);border:1px solid var(--rail);margin-bottom:16px}
+.strip div{background:var(--panel);padding:12px 14px}
+.strip .v{font-family:var(--num);font-size:26px;line-height:1.1}
+.strip .k{font-size:12px;color:var(--ink-soft);margin-top:3px}
+.strip .v.warn{color:var(--warn)} .strip .v.alarm{color:var(--alarm)} .strip .v.ok{color:var(--ok)}
+
+.card{background:var(--panel);border:1px solid var(--rail)}
+.card h2{font-family:var(--sans);font-size:17px;font-weight:600;padding:11px 14px;border-bottom:1px solid var(--rail);display:flex;align-items:center;gap:10px}
+.card h2 .cnt{font-family:var(--num);font-size:12px;color:var(--ink-soft);font-weight:400}
+
+/* 랙 지도 */
+.racks{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;padding:14px}
+.rack{border:1px solid var(--rail);background:#F7F9FA}
+.rack .rh{display:flex;justify-content:space-between;align-items:baseline;padding:6px 8px;background:var(--steel);color:#CFDAE3;font-family:var(--num);font-size:11px}
+.rack .ru{display:flex;flex-direction:column;gap:2px;padding:6px}
+.u{display:flex;align-items:center;gap:6px;padding:3px 5px;border-left:3px solid var(--idle);background:#fff;cursor:pointer;font-size:12px}
+.u:hover{background:#EEF4F8}
+.u.up{border-left-color:var(--ok)} .u.warn{border-left-color:var(--warn);background:#FDF6EA}
+.u.crit{border-left-color:var(--alarm);background:#FBEDEB} .u.down{border-left-color:var(--idle);opacity:.62}
+.u .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.u .ld{font-family:var(--num);font-size:11px;color:var(--ink-soft)}
+.rack .env{display:flex;justify-content:space-between;padding:5px 8px;border-top:1px solid var(--rail);font-family:var(--num);font-size:11px;color:var(--ink-soft)}
+.env b{font-weight:500;color:var(--ink)} .env .hot{color:var(--alarm)}
+
+/* 경보 */
+.feed{max-height:420px;overflow:auto}
+.al{display:grid;grid-template-columns:56px 1fr;gap:8px;padding:9px 12px;border-bottom:1px solid #EAEEF1}
+.al time{font-family:var(--num);font-size:11px;color:var(--ink-soft)}
+.al .m{font-size:12.5px;line-height:1.45}
+.al .sev{display:inline-block;font-size:11px;padding:0 5px;border:1px solid;margin-right:5px;vertical-align:1px}
+.sev.c{color:var(--alarm);border-color:var(--alarm)} .sev.w{color:var(--warn);border-color:var(--warn)}
+.sev.i{color:var(--link);border-color:var(--link)} .sev.r{color:var(--ok);border-color:var(--ok)}
+
+/* 드로어 */
+.scrim{position:fixed;inset:0;background:rgba(22,33,43,.42);opacity:0;pointer-events:none;transition:opacity .18s}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--panel);border-left:1px solid var(--rail);
+  transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column;z-index:20}
+.drawer.on{transform:none}
+@media (prefers-reduced-motion:reduce){.drawer,.scrim{transition:none}}
+.dh{background:var(--steel);color:#E2EAF0;padding:13px 16px;display:flex;align-items:center;gap:12px}
+.dh h3{font-family:var(--sans);font-size:20px;font-weight:600;flex:1}
+.dh button{font-size:22px;line-height:1;color:#9DB0C0}
+.db{overflow:auto;padding:16px;display:flex;flex-direction:column;gap:16px}
+.res{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.res div{border:1px solid var(--rail);padding:9px 10px}
+.res .n{font-family:var(--num);font-size:21px}
+.res .l{font-size:11.5px;color:var(--ink-soft)}
+.gauge{height:5px;background:#E7ECEF;margin-top:7px}
+.gauge i{display:block;height:100%;background:var(--ok)}
+.gauge i.w{background:var(--warn)} .gauge i.c{background:var(--alarm)}
+.meta{display:grid;grid-template-columns:repeat(2,1fr);gap:0 14px;font-size:12.5px}
+.meta p{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dotted #DCE2E7}
+.meta span{color:var(--ink-soft)} .meta b{font-weight:500;font-family:var(--num);font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-weight:600;padding:7px 8px;border-bottom:1px solid var(--rail);background:#F5F8F9;font-size:12px}
+td{padding:6px 8px;border-bottom:1px solid #EDF1F3}
+td.n{font-family:var(--num);font-size:12px;text-align:right}
+.st{font-size:11px;padding:1px 6px;border:1px solid}
+.st.up{color:var(--ok);border-color:var(--ok)} .st.dn{color:var(--alarm);border-color:var(--alarm)}
+.st.ad{color:var(--idle);border-color:var(--idle)}
+.tg{border:1px solid var(--rail);padding:2px 9px;font-size:12px}
+.tg:hover{background:#EEF4F8}
+.err{color:var(--alarm)}
+.hint{font-size:12px;color:var(--ink-soft);padding:10px 14px;border-top:1px solid var(--rail);line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <h1>IDC 상면 관제 콘솔</h1>
+  <div class="site">A동 2층 · 4개 랙 · 13대</div>
+  <div class="grow"></div>
+  <div class="pulse" aria-hidden="true"></div>
+  <div class="clock" id="clk">--:--:--</div>
+</div>
+
+<div class="wrap">
+  <div>
+    <div class="strip">
+      <div><div class="v" id="s-tot">0</div><div class="k">감시 대상</div></div>
+      <div><div class="v ok" id="s-up">0</div><div class="k">정상</div></div>
+      <div><div class="v warn" id="s-wn">0</div><div class="k">주의</div></div>
+      <div><div class="v alarm" id="s-cr">0</div><div class="k">조치 필요</div></div>
+    </div>
+
+    <div class="card">
+      <h2>랙 배치도 <span class="cnt" id="rk-cnt"></span></h2>
+      <div class="racks" id="racks"></div>
+      <p class="hint">장비를 누르면 자원 사용률과 포트별 상태를 볼 수 있습니다. 랙 하단은 흡기 온도와 랙 전력이며, 설계 한계는 랙당 6kW입니다.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>경보 <span class="cnt" id="al-cnt"></span></h2>
+    <div class="feed" id="feed"></div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="d-name">
+  <div class="dh"><h3 id="d-name">장비</h3><button id="d-close" aria-label="닫기">×</button></div>
+  <div class="db" id="d-body"></div>
+</aside>
+
+<script>
+(function(){
+'use strict';
+
+/* ── 장비 원장 ─────────────────────────────── */
+const RACKS = [
+  {id:'A-01', pdu:'A/B 이중', devs:[
+    {n:'kr-edge-rt01', t:'router',  model:'ASR 1002-HX', fw:'IOS-XE 17.9.4', u:'41U', cpu:34, mem:52, tmp:44, st:'up',
+     ifs:[{p:'GigabitEthernet0/0/0',s:'up',sp:'1G',v:'203.0.113.2/30',rx:412,tx:388,e:0},
+          {p:'GigabitEthernet0/0/1',s:'up',sp:'1G',v:'198.51.100.2/30',rx:206,tx:191,e:0},
+          {p:'TenGigE0/1/0',s:'up',sp:'10G',v:'trunk 100,200',rx:3120,tx:2870,e:2},
+          {p:'GigabitEthernet0/0/3',s:'admin',sp:'1G',v:'미사용',rx:0,tx:0,e:0}]},
+    {n:'kr-core-sw01', t:'switch',  model:'C9500-32QC', fw:'IOS-XE 17.12.2', u:'39U', cpu:22, mem:47, tmp:41, st:'up',
+     ifs:[{p:'HundredGigE1/0/1',s:'up',sp:'100G',v:'포트채널 1',rx:18400,tx:17250,e:0},
+          {p:'HundredGigE1/0/2',s:'up',sp:'100G',v:'포트채널 1',rx:17980,tx:16920,e:0},
+          {p:'TenGigE1/0/13',s:'up',sp:'10G',v:'VLAN 200',rx:2210,tx:1980,e:14},
+          {p:'TenGigE1/0/14',s:'down',sp:'10G',v:'VLAN 200',rx:0,tx:0,e:0}]},
+    {n:'kr-fw01', t:'firewall', model:'FortiGate 601F', fw:'FortiOS 7.4.4', u:'37U', cpu:58, mem:71, tmp:49, st:'warn',
+     ifs:[{p:'port1 (outside)',s:'up',sp:'10G',v:'203.0.113.10/29',rx:2980,tx:2740,e:0},
+          {p:'port2 (inside)',s:'up',sp:'10G',v:'10.20.0.1/24',rx:3110,tx:3260,e:1},
+          {p:'port3 (dmz)',s:'up',sp:'1G',v:'10.20.9.1/24',rx:184,tx:203,e:0},
+          {p:'port5 (ha)',s:'up',sp:'1G',v:'HA 하트비트',rx:12,tx:12,e:0}]}
+  ], tmp:23.4, kw:3.9},
+
+  {id:'A-02', pdu:'A/B 이중', devs:[
+    {n:'web-front01', t:'server', model:'DL360 Gen11', fw:'iLO 6 1.55', u:'22U', cpu:47, mem:63, tmp:38, st:'up',
+     ifs:[{p:'bond0 (eno1+eno2)',s:'up',sp:'2×10G',v:'10.20.0.21/24',rx:1420,tx:2180,e:0},
+          {p:'idrac/ilo',s:'up',sp:'1G',v:'10.99.0.21/24',rx:2,tx:1,e:0}]},
+    {n:'web-front02', t:'server', model:'DL360 Gen11', fw:'iLO 6 1.55', u:'21U', cpu:44, mem:61, tmp:39, st:'up',
+     ifs:[{p:'bond0 (eno1+eno2)',s:'up',sp:'2×10G',v:'10.20.0.22/24',rx:1380,tx:2090,e:0},
+          {p:'idrac/ilo',s:'up',sp:'1G',v:'10.99.0.22/24',rx:2,tx:1,e:0}]},
+    {n:'cdn-cache01', t:'server', model:'R660xs', fw:'BIOS 2.1.6', u:'19U', cpu:78, mem:84, tmp:52, st:'warn',
+     ifs:[{p:'bond0 (ens1f0+f1)',s:'up',sp:'2×25G',v:'10.20.0.31/24',rx:9840,tx:21600,e:0},
+          {p:'idrac/ilo',s:'up',sp:'1G',v:'10.99.0.31/24',rx:2,tx:1,e:0}]},
+    {n:'cdn-cache02', t:'server', model:'R660xs', fw:'BIOS 2.1.6', u:'18U', cpu:11, mem:24, tmp:31, st:'down',
+     ifs:[{p:'bond0 (ens1f0+f1)',s:'down',sp:'2×25G',v:'10.20.0.32/24',rx:0,tx:0,e:0},
+          {p:'idrac/ilo',s:'up',sp:'1G',v:'10.99.0.32/24',rx:2,tx:1,e:0}]}
+  ], tmp:27.8, kw:5.6},
+
+  {id:'B-01', pdu:'A/B 이중', devs:[
+    {n:'db-ora01', t:'server', model:'DL380 Gen11', fw:'iLO 6 1.55', u:'30U', cpu:63, mem:79, tmp:43, st:'up',
+     ifs:[{p:'bond0 (eno1+eno2)',s:'up',sp:'2×10G',v:'10.20.1.11/24',rx:2410,tx:1870,e:0},
+          {p:'bond1 (인터커넥트)',s:'up',sp:'2×10G',v:'192.168.99.11/24',rx:640,tx:655,e:0},
+          {p:'idrac/ilo',s:'up',sp:'1G',v:'10.99.1.11/24',rx:2,tx:1,e:0}]},
+    {n:'db-ora02', t:'server', model:'DL380 Gen11', fw:'iLO 6 1.55', u:'28U', cpu:59, mem:77, tmp:42, st:'up',
+     ifs:[{p:'bond0 (eno1+eno2)',s:'up',sp:'2×10G',v:'10.20.1.12/24',rx:2280,tx:1790,e:0},
+          {p:'bond1 (인터커넥트)',s:'up',sp:'2×10G',v:'192.168.99.12/24',rx:651,tx:638,e:0},
+          {p:'idrac/ilo',s:'up',sp:'1G',v:'10.99.1.12/24',rx:2,tx:1,e:0}]},
+    {n:'bkp-master01', t:'server', model:'R760', fw:'BIOS 2.3.1', u:'24U', cpu:81, mem:68, tmp:47, st:'crit',
+     ifs:[{p:'bond0 (백업망)',s:'up',sp:'2×25G',v:'10.30.0.10/24',rx:24100,tx:1120,e:38},
+          {p:'eno3 (관리)',s:'up',sp:'1G',v:'10.20.1.20/24',rx:8,tx:6,e:0},
+          {p:'idrac/ilo',s:'up',sp:'1G',v:'10.99.1.20/24',rx:2,tx:1,e:0}]}
+  ], tmp:29.6, kw:6.4},
+
+  {id:'B-02', pdu:'A단독', devs:[
+    {n:'ns-auth01', t:'server', model:'R450', fw:'BIOS 1.9.2', u:'34U', cpu:18, mem:36, tmp:35, st:'up',
+     ifs:[{p:'eno1',s:'up',sp:'1G',v:'10.20.2.5/24',rx:46,tx:52,e:0},
+          {p:'idrac/ilo',s:'up',sp:'1G',v:'10.99.2.5/24',rx:2,tx:1,e:0}]},
+    {n:'mon-zabbix01', t:'server', model:'R450', fw:'BIOS 1.9.2', u:'32U', cpu:39, mem:58, tmp:37, st:'up',
+     ifs:[{p:'eno1',s:'up',sp:'1G',v:'10.20.2.9/24',rx:310,tx:88,e:0},
+          {p:'idrac/ilo',s:'up',sp:'1G',v:'10.99.2.9/24',rx:2,tx:1,e:0}]},
+    {n:'kr-mgmt-sw01', t:'switch', model:'C9200L-48P', fw:'IOS-XE 17.9.5', u:'44U', cpu:14, mem:33, tmp:36, st:'up',
+     ifs:[{p:'GigabitEthernet1/0/1',s:'up',sp:'1G',v:'VLAN 99',rx:36,tx:41,e:0},
+          {p:'TenGigE1/1/1',s:'up',sp:'10G',v:'업링크',rx:520,tx:498,e:0}]}
+  ], tmp:24.1, kw:2.7}
+];
+
+const ALERTS = [
+  {t:'04:12', s:'c', m:'bkp-master01 백업망 인터페이스 에러 패킷 38건 누적. 광 모듈 또는 패치 코드 점검 필요.'},
+  {t:'04:12', s:'c', m:'bkp-master01 CPU 81% — 야간 백업 창 중첩 구간으로 추정.'},
+  {t:'03:47', s:'w', m:'B-01 랙 흡기 29.6도. 권고 상한 27도 초과 상태가 40분째 유지 중.'},
+  {t:'03:40', s:'w', m:'B-01 랙 전력 6.4kW. 설계 한계 6kW 초과 — 신규 장비 입주 보류 대상.'},
+  {t:'02:58', s:'w', m:'cdn-cache01 메모리 84%. 캐시 히트율 확인 후 워커 수 조정 검토.'},
+  {t:'02:31', s:'i', m:'cdn-cache02 계획 정지. 펌웨어 적용 작업으로 사전 승인됨(변경번호 CHG-2609-014).'},
+  {t:'01:55', s:'w', m:'kr-fw01 메모리 71%. 세션 테이블 증가 추이 관찰 중.'},
+  {t:'01:20', s:'r', m:'kr-core-sw01 TenGigE1/0/14 링크 다운. 이중화 경로로 자동 절체 확인.'},
+  {t:'00:44', s:'i', m:'ns-auth01 인증서 갱신 완료. 만료일 2027-03-02로 연장.'},
+  {t:'00:05', s:'r', m:'web-front02 야간 재기동 후 정상 복귀. 헬스체크 3회 연속 통과.'}
+];
+
+const LBL = {up:'정상',warn:'주의',crit:'조치 필요',down:'정지'};
+const SEV = {c:'CRIT',w:'WARN',i:'INFO',r:'복구'};
+
+/* ── 렌더 ──────────────────────────────────── */
+const $ = s => document.querySelector(s);
+const all = () => RACKS.flatMap(r => r.devs);
+
+function drawRacks(){
+  $('#racks').innerHTML = RACKS.map(r => `
+    <div class="rack">
+      <div class="rh"><b>${r.id}</b><span>${r.pdu}</span></div>
+      <div class="ru">
+        ${r.devs.map(d => `<button class="u ${d.st}" data-dev="${d.n}">
+            <span class="nm">${d.n}</span><span class="ld">${d.u}</span>
+          </button>`).join('')}
+      </div>
+      <div class="env">
+        <span>흡기 <b class="${r.tmp>27?'hot':''}">${r.tmp.toFixed(1)}°C</b></span>
+        <span>전력 <b class="${r.kw>6?'hot':''}">${r.kw.toFixed(1)}kW</b></span>
+      </div>
+    </div>`).join('');
+  $('#rk-cnt').textContent = RACKS.length + '개 랙 / ' + all().length + '대';
+}
+
+function drawSummary(){
+  const d = all();
+  $('#s-tot').textContent = d.length;
+  $('#s-up').textContent  = d.filter(x=>x.st==='up').length;
+  $('#s-wn').textContent  = d.filter(x=>x.st==='warn').length;
+  $('#s-cr').textContent  = d.filter(x=>x.st==='crit'||x.st==='down').length;
+}
+
+function drawFeed(){
+  $('#feed').innerHTML = ALERTS.map(a => `
+    <div class="al"><time>${a.t}</time>
+      <div class="m"><span class="sev ${a.s}">${SEV[a.s]}</span>${a.m}</div>
+    </div>`).join('');
+  $('#al-cnt').textContent = ALERTS.length + '건 · 최근 6시간';
+}
+
+function lvl(v){ return v>=80?'c' : v>=70?'w' : ''; }
+
+function openDev(name){
+  const d = all().find(x=>x.n===name); if(!d) return;
+  const rack = RACKS.find(r => r.devs.includes(d));
+  $('#d-name').textContent = d.n;
+  $('#d-body').innerHTML = `
+    <div class="res">
+      <div><div class="n">${d.cpu}%</div><div class="l">CPU</div>
+        <div class="gauge"><i class="${lvl(d.cpu)}" style="width:${d.cpu}%"></i></div></div>
+      <div><div class="n">${d.mem}%</div><div class="l">메모리</div>
+        <div class="gauge"><i class="${lvl(d.mem)}" style="width:${d.mem}%"></i></div></div>
+      <div><div class="n">${d.tmp}°C</div><div class="l">흡기 온도</div>
+        <div class="gauge"><i class="${d.tmp>=50?'c':d.tmp>=45?'w':''}" style="width:${Math.min(d.tmp,70)/70*100}%"></i></div></div>
+    </div>
+    <div class="meta">
+      <p><span>상태</span><b>${LBL[d.st]}</b></p>
+      <p><span>랙 · 위치</span><b>${rack.id} ${d.u}</b></p>
+      <p><span>모델</span><b>${d.model}</b></p>
+      <p><span>펌웨어</span><b>${d.fw}</b></p>
+      <p><span>전원</span><b>${rack.pdu}</b></p>
+      <p><span>랙 흡기</span><b>${rack.tmp.toFixed(1)}°C</b></p>
+    </div>
+    <div>
+      <table>
+        <thead><tr><th>포트</th><th>상태</th><th class="n">속도</th><th>할당</th>
+          <th class="n">RX</th><th class="n">TX</th><th class="n">에러</th><th></th></tr></thead>
+        <tbody>${d.ifs.map((f,i)=>ifRow(d.n,f,i)).join('')}</tbody>
+      </table>
+    </div>`;
+  $('#scrim').classList.add('on'); $('#drawer').classList.add('on');
+  $('#d-close').focus();
+}
+
+function mbps(v){ return v>=1000 ? (v/1000).toFixed(1)+' G' : v+' M'; }
+
+function ifRow(dev,f,i){
+  const cls = f.s==='up'?'up':f.s==='down'?'dn':'ad';
+  const txt = f.s==='up'?'UP':f.s==='down'?'DOWN':'ADMIN-DN';
+  return `<tr>
+    <td>${f.p}</td><td><span class="st ${cls}">${txt}</span></td><td class="n">${f.sp}</td>
+    <td>${f.v}</td><td class="n">${mbps(f.rx)}</td><td class="n">${mbps(f.tx)}</td>
+    <td class="n ${f.e>0?'err':''}">${f.e}</td>
+    <td><button class="tg" data-dev="${dev}" data-if="${i}">${f.s==='up'?'차단':'해제'}</button></td>
+  </tr>`;
+}
+
+function toggleIf(dev,idx){
+  const d = all().find(x=>x.n===dev); const f = d.ifs[idx];
+  if(f.s==='up'){ f.prev=[f.rx,f.tx]; f.s='admin'; f.rx=0; f.tx=0; }
+  else { f.s='up'; if(f.prev){ f.rx=f.prev[0]; f.tx=f.prev[1]; } }
+  openDev(dev);
+}
+
+function close(){ $('#scrim').classList.remove('on'); $('#drawer').classList.remove('on'); }
+
+/* ── 이벤트 ────────────────────────────────── */
+document.addEventListener('click', e => {
+  const u = e.target.closest('.u');       if(u){ openDev(u.dataset.dev); return; }
+  const t = e.target.closest('.tg');      if(t){ toggleIf(t.dataset.dev, +t.dataset.if); return; }
+  if(e.target.closest('#d-close') || e.target.id==='scrim') close();
+});
+document.addEventListener('keydown', e => { if(e.key==='Escape') close(); });
+
+function tick(){
+  $('#clk').textContent = new Date().toLocaleTimeString('ko-KR',{hour12:false});
+}
+tick(); setInterval(tick,1000);
+drawRacks(); drawSummary(); drawFeed();
+})();
+</script>
+</body>
+</html>
