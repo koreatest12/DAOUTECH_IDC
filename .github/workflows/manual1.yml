@@ -1,0 +1,78 @@
+name: 저장소 검수
+
+# 포트폴리오 저장소를 제출 전에 자동으로 점검합니다.
+# zip을 그대로 올려 모듈이 빠진 채 공개된 적이 있어서, 푸시할 때마다 확인하도록 했습니다.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: 구성 파악 및 리뷰
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v4
+
+      - name: 파이썬 준비
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Node 준비
+        # HTML 안의 스크립트 문법을 node --check 로 확인합니다.
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 저장소 검수 실행
+        id: review
+        run: |
+          python3 tools/review_repo.py --report review.md
+        continue-on-error: true
+
+      - name: 결과를 요약 화면에 표시
+        if: always()
+        run: |
+          if [ -f review.md ]; then
+            cat review.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "리포트가 생성되지 않았습니다." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: 리포트 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-report
+          path: review.md
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: 파이썬 도구 실동작 확인
+        # 문법만 맞고 실행이 깨지는 경우를 걸러냅니다.
+        run: |
+          set -e
+          if [ -f 02-server-healthcheck/healthcheck.py ]; then
+            python3 02-server-healthcheck/healthcheck.py --quiet || true
+            echo "healthcheck 실행 확인 (종료 코드는 점검 결과이므로 무시)"
+          fi
+          for f in 03-ops-scripts/*.py; do
+            [ -f "$f" ] || continue
+            python3 "$f" --help > /dev/null
+            echo "  $f --help OK"
+          done
+
+      - name: 검수 결과에 따라 실패 처리
+        if: steps.review.outcome == 'failure'
+        run: |
+          echo "::error::검수에서 문제를 찾았습니다. 요약 화면의 표를 확인하십시오."
+          exit 1
