@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>백업 운영 시뮬레이터</title>
+<style>
+:root{
+  --deck:#131A20;      /* 테이프 라이브러리 전면 */
+  --deck-2:#1D262E;
+  --floor:#EAECEE;
+  --card:#FFFFFF;
+  --rule:#CFD5DA;
+  --ink:#141C23;
+  --soft:#5E6D79;
+  --done:#2A6F4B;
+  --run:#1D6CA8;
+  --fail:#A93226;
+  --hold:#9A6B10;
+  --tape:#7A5C2E;
+  --mono:'IBM Plex Mono','D2Coding',ui-monospace,Consolas,monospace;
+  --sans:'Pretendard','Malgun Gothic','Apple SD Gothic Neo',system-ui,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--floor);color:var(--ink);font-family:var(--sans);font-size:13.5px;line-height:1.55}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+:focus-visible{outline:2px solid var(--run);outline-offset:2px}
+
+.top{background:var(--deck);color:#D6DEE5;padding:0 20px;height:58px;display:flex;align-items:center;gap:16px}
+.top h1{font-size:20px;font-weight:600}
+.top .day{font-family:var(--mono);font-size:13px;color:#8FA3B3;border-left:1px solid #33424F;padding-left:16px}
+.top .grow{flex:1}
+.top button{border:1px solid #3B4B59;padding:6px 13px;font-size:13px;color:#D6DEE5}
+.top button:hover{background:#26323C}
+.top button.go{background:#2E5C7E;border-color:#3E7BA6;color:#EAF3F9}
+
+nav{background:var(--card);border-bottom:1px solid var(--rule);padding:0 20px;display:flex;overflow-x:auto}
+nav button{padding:11px 16px;color:var(--soft);border-bottom:3px solid transparent;white-space:nowrap}
+nav button[aria-selected=true]{color:var(--ink);font-weight:600;border-bottom-color:var(--tape)}
+
+main{max-width:1180px;margin:0 auto;padding:18px 20px 40px}
+section[hidden]{display:none}
+.card{background:var(--card);border:1px solid var(--rule);margin-bottom:16px}
+.card>h2{font-size:15px;font-weight:600;padding:10px 14px;border-bottom:1px solid var(--rule);display:flex;gap:10px;align-items:baseline}
+.card>h2 small{font-weight:400;color:var(--soft);font-size:12px}
+.pad{padding:14px}
+
+.kpi{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin-bottom:16px}
+.kpi div{background:var(--card);padding:11px 13px}
+.kpi b{font-family:var(--mono);font-size:23px;font-weight:500;display:block}
+.kpi span{font-size:12px;color:var(--soft)}
+.kpi .f{color:var(--fail)} .kpi .g{color:var(--done)} .kpi .h{color:var(--hold)}
+
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;padding:7px 9px;border-bottom:2px solid var(--rule);font-size:12px;font-weight:600;background:#F4F6F7}
+td{padding:6px 9px;border-bottom:1px solid #EDF0F2}
+td.m{font-family:var(--mono);font-size:12px}
+td.r{text-align:right;font-family:var(--mono);font-size:12px}
+.st{font-size:11px;padding:1px 7px;border:1px solid;white-space:nowrap}
+.st.done{color:var(--done);border-color:var(--done)}
+.st.run{color:var(--run);border-color:var(--run)}
+.st.fail{color:var(--fail);border-color:var(--fail)}
+.st.hold{color:var(--hold);border-color:var(--hold)}
+
+/* 타임라인 */
+.tl{padding:14px}
+.tl .hours{display:grid;grid-template-columns:150px 1fr;gap:10px;font-family:var(--mono);font-size:11px;color:var(--soft)}
+.tl .ticks{display:grid;grid-template-columns:repeat(24,1fr)}
+.tl .ticks span{border-left:1px solid #E3E7EA;padding-left:2px}
+.tl .lane{display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;margin-top:5px}
+.tl .lane .nm{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl .track{position:relative;height:20px;background:#F2F4F5;border:1px solid #E3E7EA}
+.tl .win{position:absolute;top:0;bottom:0;background:#E8EEF3}
+.tl .bar{position:absolute;top:3px;bottom:3px;border-radius:1px}
+.tl .bar.done{background:#3E8A63} .tl .bar.fail{background:#B8483C}
+.tl .bar.run{background:#3282BE} .tl .bar.hold{background:#B9862B}
+
+/* 미디어 */
+.pools{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.pool{border:1px solid var(--rule)}
+.pool h3{background:var(--deck-2);color:#CBD6DF;font-size:13px;padding:7px 11px;display:flex;justify-content:space-between}
+.pool .body{padding:10px 11px}
+.bar-o{height:6px;background:#E7EBEE;margin:7px 0 5px}
+.bar-o i{display:block;height:100%;background:var(--tape)}
+.bar-o i.hot{background:var(--fail)}
+.mini{font-size:11.5px;color:var(--soft);font-family:var(--mono)}
+
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--rule);padding:6px 12px;font-size:13px;background:var(--card)}
+.btn:hover{background:#EFF2F4}
+.btn.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+select,input[type=date]{font:inherit;border:1px solid var(--rule);padding:5px 8px}
+.note{font-size:12.5px;color:var(--soft);padding:11px 14px;border-top:1px solid var(--rule);line-height:1.65}
+.chain{font-family:var(--mono);font-size:12.5px}
+.chain li{padding:5px 0;border-bottom:1px dotted var(--rule);display:flex;gap:10px}
+.chain .k{width:52px;color:var(--soft)}
+.err{color:var(--fail)}
+.log{background:#151C22;color:#C9D4DC;font-family:var(--mono);font-size:12px;padding:12px;max-height:300px;overflow:auto;line-height:1.75}
+.log .t{color:#6C808F} .log .e{color:#E28C7F} .log .w{color:#D6B067} .log .o{color:#8FC7A4}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>백업 운영 시뮬레이터</h1>
+  <div class="day" id="today">—</div>
+  <div class="grow"></div>
+  <button id="run1" class="go">하루 실행</button>
+  <button id="run7">일주일 실행</button>
+  <button id="run30">한 달 실행</button>
+  <button id="reset">초기화</button>
+</div>
+
+<nav role="tablist">
+  <button role="tab" aria-selected="true" data-p="p1">운영 현황</button>
+  <button role="tab" aria-selected="false" data-p="p2">정책과 스케줄</button>
+  <button role="tab" aria-selected="false" data-p="p3">미디어</button>
+  <button role="tab" aria-selected="false" data-p="p4">복구 체인</button>
+  <button role="tab" aria-selected="false" data-p="p5">장애 주입</button>
+</nav>
+
+<main>
+<section id="p1">
+  <div class="kpi" id="kpi"></div>
+  <div class="card"><h2>당일 백업 창 <small id="tl-day"></small></h2><div class="tl" id="tl"></div>
+    <p class="note">옅은 구간이 정책에 지정된 백업 창입니다. 창 안에 끝나지 못한 잡은 상태 코드 196으로 종료됩니다.</p>
+  </div>
+  <div class="card"><h2>최근 잡 <small id="job-cnt"></small></h2>
+    <table><thead><tr><th>잡 ID</th><th>정책</th><th>유형</th><th>시작</th><th class="r">소요</th><th class="r">크기</th><th>미디어</th><th>결과</th></tr></thead>
+    <tbody id="jobs"></tbody></table>
+  </div>
+  <div class="card"><h2>운영 로그</h2><div class="log" id="log"></div></div>
+</section>
+
+<section id="p2" hidden>
+  <div class="card"><h2>백업 정책</h2>
+    <table><thead><tr><th>정책</th><th>대상</th><th>평일</th><th>주말</th><th>월말</th><th>백업 창</th><th class="r">보관</th></tr></thead>
+    <tbody id="pol"></tbody></table>
+    <p class="note">
+      주말 풀 백업을 토·일로 나눈 이유는 같은 스토리지 유닛을 동시에 점유하지 않기 위해서입니다.
+      한 번에 몰면 창 안에 끝나지 않아 196으로 떨어집니다. 월말 풀은 보관 기간이 길어 테이프로 보냅니다.
+    </p>
+  </div>
+  <div class="card"><h2>다음 7일 예정</h2>
+    <table><thead><tr><th>일자</th><th>요일</th><th>정책</th><th>유형</th><th>시작</th><th>비고</th></tr></thead>
+    <tbody id="plan"></tbody></table>
+  </div>
+</section>
+
+<section id="p3" hidden>
+  <div class="card"><h2>미디어 풀</h2><div class="pad"><div class="pools" id="pools"></div></div>
+    <p class="note">디스크 풀이 고수위(90%)를 넘으면 신규 잡이 129로 실패합니다. 테이프 풀에 여유 볼륨이 없으면 96으로 실패합니다.</p>
+  </div>
+  <div class="card"><h2>카탈로그 <small id="cat-cnt"></small></h2>
+    <table><thead><tr><th>백업 ID</th><th>정책</th><th>유형</th><th>생성</th><th>만료</th><th class="r">크기</th><th>미디어</th></tr></thead>
+    <tbody id="cat"></tbody></table>
+  </div>
+</section>
+
+<section id="p4" hidden>
+  <div class="card"><h2>복구 체인 분석</h2>
+    <div class="pad">
+      <div class="row">
+        <label>정책 <select id="rc-pol"></select></label>
+        <label>복구 기준일 <select id="rc-date"></select></label>
+      </div>
+      <div id="rc" style="margin-top:16px"></div>
+    </div>
+    <p class="note">
+      차등 증분은 마지막 풀 이후의 증분을 모두 필요로 하고, 누적 증분은 풀과 가장 최근 증분 하나만 있으면 됩니다.
+      복구 시간은 짧지만 매일 백업량이 커지는 쪽이 누적입니다. 어느 쪽을 쓸지는 복구 목표 시간과 백업 창 중
+      무엇이 더 빠듯한지로 정해집니다.
+    </p>
+  </div>
+</section>
+
+<section id="p5" hidden>
+  <div class="card"><h2>장애 주입</h2>
+    <div class="pad">
+      <p style="color:var(--soft);margin-bottom:12px">누른 상태로 다음 실행을 돌리면 해당 상황이 재현됩니다. 조치 절차를 확인하기 위한 기능입니다.</p>
+      <div class="row" id="faults"></div>
+    </div>
+  </div>
+  <div class="card"><h2>상태 코드와 조치</h2>
+    <table><thead><tr><th>코드</th><th>의미</th><th>재시도</th><th>먼저 볼 것</th></tr></thead><tbody id="codes"></tbody></table>
+  </div>
+</section>
+</main>
+
+<script>
+/* ===ENGINE START=== 순수 로직. DOM을 참조하지 않으므로 단독 실행 검증이 가능하다. */
+const ENGINE = (function(){
+'use strict';
+
+const POLICIES = [
+  {id:'WAS_FS',   name:'WAS 파일시스템', target:'web-front01/02', mode:'차등',
+   week:'증분', sat:'풀', sun:null, monthEnd:true, win:[22,5], fullGB:820, incGB:46,
+   rateGB:1.7, keepDays:35, keepMonthDays:2555, pool:'MSDP_DISK', monthPool:'TAPE_LTO9'},
+  {id:'ORA_RMAN', name:'Oracle RMAN',   target:'db-ora01/02',   mode:'누적',
+   week:'증분', sat:'풀', sun:null, monthEnd:true, win:[23,6], fullGB:1640, incGB:120,
+   rateGB:1.4, keepDays:35, keepMonthDays:2555, pool:'MSDP_DISK', monthPool:'TAPE_LTO9'},
+  {id:'FILE_SRV', name:'파일 서버',      target:'ns-auth01',     mode:'차등',
+   week:'증분', sat:null, sun:'풀', monthEnd:true, win:[21,4], fullGB:2450, incGB:38,
+   rateGB:1.9, keepDays:35, keepMonthDays:1825, pool:'MSDP_DISK', monthPool:'TAPE_LTO9'}
+];
+
+const POOLS = {
+  MSDP_DISK: {kind:'디스크', capGB:48000, usedGB:9200, hwm:90, lwm:70},
+  TAPE_LTO9: {kind:'테이프', capGB:216000, volumeGB:18000, usedGB:2400, volumes:12, freeVolumes:11}
+};
+
+const CODES = {
+  0:   ['정상 종료', '—', '—'],
+  96:  ['스크래치 풀 소진', '아니오', '만료 볼륨 회수 여부와 스크래치 풀 잔량'],
+  129: ['디스크 풀 고수위 초과', '아니오', '중복 제거 풀 사용률과 만료 처리 지연'],
+  196: ['백업 창 안에 끝나지 못함', '아니오', '선행 잡 지연과 스토리지 유닛 경합'],
+  219: ['미디어 서버 응답 없음', '예', '미디어 서버 프로세스와 백업망 인터페이스'],
+  24:  ['소켓 쓰기 오류', '예', '백업망 구간 에러 패킷과 MTU'],
+  41:  ['네트워크 연결 시간 초과', '예', '클라이언트 방화벽 정책과 대상 서버 부하'],
+  84:  ['미디어 쓰기 오류', '예', '드라이브 청소 주기와 볼륨 상태']
+};
+
+const RETRYABLE = new Set([219, 24, 41, 84]);
+
+/* 테이프 여유 볼륨은 사용량에서 파생시킨다. 백업 1건이 볼륨 1개를 통째로 쓰는 것이
+   아니라, 사용량이 볼륨 용량(LTO-9 18TB)을 넘을 때 다음 볼륨으로 넘어간다. */
+function syncVolumes(pool){
+  if(pool.kind !== '테이프') return;
+  const used = Math.ceil(pool.usedGB / pool.volumeGB);
+  pool.freeVolumes = Math.max(0, pool.volumes - used);
+}
+
+/* 월말 풀은 보관 기간이 길고 용량이 커 테이프로 보내며, 확장 창을 사용한다 */
+const MONTH_END_WIN = [18, 8];
+
+function pad(n){ return String(n).padStart(2,'0'); }
+function iso(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+function isMonthEnd(d){ return addDays(d,1).getDate() === 1; }
+const DOW = ['일','월','화','수','목','금','토'];
+
+/* 그날 돌아야 할 잡을 정한다. 월말 풀이 있으면 정규 스케줄은 건너뛴다. */
+function planFor(date, opts){
+  const dow = date.getDay(), end = isMonthEnd(date), out = [];
+  for(const p of POLICIES){
+    if(end && p.monthEnd){
+      out.push({pol:p, type:'월말풀', pool:p.monthPool, win:MONTH_END_WIN});
+      if(opts && opts.skipRegularOnMonthEnd) continue;
+      continue;
+    }
+    let type = null;
+    if(dow === 6 && p.sat) type = p.sat;
+    else if(dow === 0 && p.sun) type = p.sun;
+    else if(dow >= 1 && dow <= 5) type = p.week;
+    if(type) out.push({pol:p, type: type === '풀' ? '풀' : (p.mode === '누적' ? '누적증분' : '차등증분'),
+                       pool:p.pool});
+  }
+  return out;
+}
+
+/* 잡 크기 — 풀은 정책 기준 용량, 증분은 누적 여부에 따라 늘어난다 */
+function sizeOf(item, sinceFull){
+  const p = item.pol;
+  if(item.type === '풀' || item.type === '월말풀') return p.fullGB;
+  if(item.type === '누적증분') return Math.round(p.incGB * (1 + sinceFull * 0.55));
+  return p.incGB;
+}
+
+function windowMinutes(win){
+  const [s,e] = win;
+  return ((e - s + 24) % 24) * 60;
+}
+
+function makeState(startISO){
+  return {
+    date: startISO,
+    seq: 0,
+    jobs: [],
+    catalog: [],
+    pools: (() => { const p = JSON.parse(JSON.stringify(POOLS));
+                    Object.values(p).forEach(syncVolumes); return p; })(),
+    log: [],
+    sinceFull: Object.fromEntries(POLICIES.map(p => [p.id, 0])),
+    faults: {mediaServerDown:false, diskHWM:false, noScratch:false, slowClient:false},
+    opts: {skipRegularOnMonthEnd:true}
+  };
+}
+
+function say(st, level, msg){
+  st.log.push({d: st.date, l: level, m: msg});
+  if(st.log.length > 400) st.log.splice(0, st.log.length - 400);
+}
+
+function nextId(st, polId, date){
+  st.seq += 1;
+  return `${polId}_${date.replace(/-/g,'')}_${pad(st.seq % 100)}`;
+}
+
+function expiryOf(item, date){
+  const days = item.type === '월말풀' ? item.pol.keepMonthDays : item.pol.keepDays;
+  return iso(addDays(new Date(date), days));
+}
+
+/* 만료된 카탈로그 이미지를 지우고 용량을 회수한다 */
+function expire(st){
+  const before = st.catalog.length;
+  const alive = [];
+  for(const img of st.catalog){
+    if(img.expires <= st.date){
+      const pool = st.pools[img.pool];
+      if(pool){
+        pool.usedGB = Math.max(0, pool.usedGB - img.sizeGB);
+        syncVolumes(pool);
+      }
+    } else alive.push(img);
+  }
+  st.catalog = alive;
+  const n = before - alive.length;
+  if(n) say(st, 'info', `만료 이미지 ${n}건 회수. 카탈로그 ${alive.length}건 유지.`);
+}
+
+/* 하루치 실행 */
+function runDay(st){
+  const date = new Date(st.date);
+  expire(st);
+
+  const items = planFor(date, st.opts);
+  if(!items.length){ say(st, 'info', '예정된 백업이 없습니다.'); return; }
+
+  const dayJobs = [];
+  let elapsedInWindow = {};
+
+  for(const item of items){
+    const p = item.pol;
+    const sizeGB = sizeOf(item, st.sinceFull[p.id]);
+    const pool = st.pools[item.pool];
+    const id = nextId(st, p.id, st.date);
+    const win = item.win || p.win;
+    const startH = win[0];
+    const budget = windowMinutes(win);
+
+    // 같은 창을 쓰는 잡이 앞에 있으면 그만큼 늦게 시작한다
+    const key = `${item.pool}_${startH}`;
+    const offset = elapsedInWindow[key] || 0;
+
+    let throughput = pool.kind === '테이프' ? 7.0 : 6.2;   // GB/분
+    if(st.faults.slowClient) throughput *= 0.45;
+    let minutes = Math.round(sizeGB / throughput) + 4;
+
+    let code = 0;
+    let attempts = 1;
+
+    if(st.faults.mediaServerDown) code = 219;
+    else if(pool.kind === '디스크' &&
+            (st.faults.diskHWM || (pool.usedGB + sizeGB) / pool.capGB * 100 > pool.hwm)) code = 129;
+    else if(pool.kind === '테이프' && (st.faults.noScratch || pool.freeVolumes < 1)) code = 96;
+    else if(offset + minutes > budget) code = 196;
+
+    // 재시도 가능한 코드는 한 번 더 시도한다
+    if(RETRYABLE.has(code)){
+      attempts = 2;
+      if(!st.faults.mediaServerDown) code = 0;
+    }
+
+    const startMin = startH * 60 + offset;
+    const job = {
+      id, pol:p.id, polName:p.name, type:item.type, pool:item.pool,
+      date: st.date, startMin, minutes: code === 196 ? budget - offset : minutes,
+      sizeGB, code, attempts, win
+    };
+    dayJobs.push(job);
+    elapsedInWindow[key] = offset + job.minutes;
+
+    if(code === 0){
+      pool.usedGB += sizeGB;
+      syncVolumes(pool);
+      st.catalog.push({id, pol:p.id, type:item.type, created:st.date,
+                       expires: expiryOf(item, st.date), sizeGB, pool:item.pool});
+      st.sinceFull[p.id] = (item.type === '풀' || item.type === '월말풀')
+        ? 0 : st.sinceFull[p.id] + 1;
+      say(st, 'ok', `${id} ${item.type} 완료 · ${sizeGB.toLocaleString()}GB · ${job.minutes}분`
+                    + (attempts > 1 ? ' (재시도 1회 후 성공)' : ''));
+    } else {
+      const [meaning,, look] = CODES[code];
+      say(st, code === 196 ? 'warn' : 'err',
+          `${id} ${item.type} 실패 · 상태 ${code} ${meaning} → ${look}`);
+    }
+  }
+
+  st.jobs = dayJobs.concat(st.jobs).slice(0, 120);
+  st.date = iso(addDays(date, 1));
+}
+
+/* 복구 체인 — 기준일에 복구하려면 어떤 이미지가 필요한가 */
+function restoreChain(st, polId, dateISO){
+  const p = POLICIES.find(x => x.id === polId);
+  if(!p) return null;
+  const imgs = st.catalog
+    .filter(i => i.pol === polId && i.created <= dateISO)
+    .sort((a,b) => a.created < b.created ? -1 : 1);
+
+  let lastFullIdx = -1;
+  imgs.forEach((img, i) => { if(img.type === '풀' || img.type === '월말풀') lastFullIdx = i; });
+  if(lastFullIdx < 0) return {ok:false, reason:'기준일 이전의 풀 백업이 카탈로그에 없습니다.'};
+
+  const full = imgs[lastFullIdx];
+  const after = imgs.slice(lastFullIdx + 1);
+  const need = p.mode === '누적'
+    ? (after.length ? [full, after[after.length - 1]] : [full])
+    : [full, ...after];
+
+  return {
+    ok: true, mode: p.mode, need,
+    totalGB: need.reduce((s,i) => s + i.sizeGB, 0),
+    skipped: p.mode === '누적' ? Math.max(0, after.length - 1) : 0
+  };
+}
+
+return {POLICIES, POOLS, CODES, RETRYABLE, DOW, syncVolumes, iso, addDays, isMonthEnd,
+        planFor, sizeOf, makeState, runDay, restoreChain, windowMinutes, pad};
+})();
+/* ===ENGINE END=== */
+
+if(typeof module !== 'undefined') module.exports = ENGINE;
+if(typeof document !== 'undefined') (function(){
+'use strict';
+const E = ENGINE;
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+let st = E.makeState(E.iso(new Date()));
+
+/* 탭 */
+$$('nav button').forEach(b => b.addEventListener('click', () => {
+  $$('nav button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  $$('main section').forEach(s => { s.hidden = s.id !== b.dataset.p; });
+  draw();
+}));
+
+const hhmm = m => `${E.pad(Math.floor(m/60)%24)}:${E.pad(m%60)}`;
+const gb = n => n >= 1000 ? (n/1000).toFixed(1)+' TB' : n.toLocaleString()+' GB';
+const cls = c => c === 0 ? 'done' : c === 196 ? 'hold' : 'fail';
+
+function drawKPI(){
+  const j = st.jobs.slice(0, 30);
+  const ok = j.filter(x => x.code === 0).length;
+  const fail = j.filter(x => x.code !== 0 && x.code !== 196).length;
+  const late = j.filter(x => x.code === 196).length;
+  const disk = st.pools.MSDP_DISK;
+  const pct = disk.usedGB / disk.capGB * 100;
+  $('#kpi').innerHTML = `
+    <div><b>${j.length}</b><span>최근 잡</span></div>
+    <div><b class="g">${ok}</b><span>완료</span></div>
+    <div><b class="h">${late}</b><span>창 초과</span></div>
+    <div><b class="f">${fail}</b><span>실패</span></div>
+    <div><b class="${pct>disk.hwm?'f':''}">${pct.toFixed(0)}%</b><span>디스크 풀</span></div>`;
+}
+
+function drawTimeline(){
+  const day = st.jobs.length ? st.jobs[0].date : st.date;
+  $('#tl-day').textContent = day;
+  const todays = st.jobs.filter(j => j.date === day);
+  const ticks = Array.from({length:24}, (_,h) => `<span>${h%3===0?E.pad(h):''}</span>`).join('');
+  const lanes = todays.map(j => {
+    const [ws,we] = j.win;
+    const wl = ws/24*100, ww = ((we-ws+24)%24)/24*100;
+    const bl = (j.startMin/60)/24*100, bw = Math.max(1.2, (j.minutes/60)/24*100);
+    return `<div class="lane"><div class="nm">${j.polName} · ${j.type}</div>
+      <div class="track">
+        <div class="win" style="left:${wl}%;width:${ww}%"></div>
+        <div class="bar ${cls(j.code)}" style="left:${bl}%;width:${bw}%"
+             title="${j.id} ${hhmm(j.startMin)} · ${j.minutes}분"></div>
+      </div></div>`;
+  }).join('') || '<p style="color:var(--soft);padding:8px 0">아직 실행한 잡이 없습니다. 상단의 하루 실행을 눌러 보십시오.</p>';
+  $('#tl').innerHTML = `<div class="hours"><div></div><div class="ticks">${ticks}</div></div>${lanes}`;
+}
+
+function drawJobs(){
+  $('#job-cnt').textContent = `${st.jobs.length}건`;
+  $('#jobs').innerHTML = st.jobs.slice(0, 40).map(j => {
+    const [meaning] = E.CODES[j.code];
+    return `<tr>
+      <td class="m">${j.id}</td><td>${j.polName}</td><td>${j.type}</td>
+      <td class="m">${j.date} ${hhmm(j.startMin)}</td>
+      <td class="r">${j.minutes}분</td><td class="r">${gb(j.sizeGB)}</td>
+      <td class="m">${j.pool}</td>
+      <td><span class="st ${cls(j.code)}">${j.code === 0 ? '완료' : j.code}</span>
+          ${j.code ? `<div style="font-size:11.5px;color:var(--soft)">${meaning}</div>` : ''}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" style="color:var(--soft)">실행 이력이 없습니다.</td></tr>';
+}
+
+function drawLog(){
+  $('#log').innerHTML = st.log.slice(-60).reverse().map(l =>
+    `<div><span class="t">${l.d}</span> <span class="${l.l==='err'?'e':l.l==='warn'?'w':l.l==='ok'?'o':''}">${l.m}</span></div>`
+  ).join('') || '<div class="t">기록 없음</div>';
+}
+
+function drawPolicies(){
+  $('#pol').innerHTML = E.POLICIES.map(p => `<tr>
+    <td class="m">${p.id}</td><td>${p.target}</td>
+    <td>${p.week}(${p.mode})</td><td>${p.sat?'토 풀':''}${p.sun?'일 풀':''}</td>
+    <td>${p.monthEnd?'풀 → 테이프':'—'}</td>
+    <td class="m">${E.pad(p.win[0])}:00–${E.pad(p.win[1])}:00</td>
+    <td class="r">${p.keepDays}일 / ${Math.round(p.keepMonthDays/365)}년</td></tr>`).join('');
+
+  const rows = [];
+  for(let i = 0; i < 7; i++){
+    const d = E.addDays(new Date(st.date), i);
+    const items = E.planFor(d, st.opts);
+    if(!items.length){
+      rows.push(`<tr><td class="m">${E.iso(d)}</td><td>${E.DOW[d.getDay()]}</td>
+        <td colspan="4" style="color:var(--soft)">예정 없음</td></tr>`);
+      continue;
+    }
+    items.forEach((it, k) => rows.push(`<tr>
+      <td class="m">${k===0?E.iso(d):''}</td><td>${k===0?E.DOW[d.getDay()]:''}</td>
+      <td>${it.pol.name}</td><td>${it.type}</td>
+      <td class="m">${E.pad(it.pol.win[0])}:00</td>
+      <td style="color:var(--soft)">${E.isMonthEnd(d)?'월말 — 정규 스케줄 생략':''}</td></tr>`));
+  }
+  $('#plan').innerHTML = rows.join('');
+}
+
+function drawPools(){
+  $('#pools').innerHTML = Object.entries(st.pools).map(([name, p]) => {
+    const pct = p.usedGB / p.capGB * 100;
+    return `<div class="pool">
+      <h3><span>${name}</span><span>${p.kind}</span></h3>
+      <div class="body">
+        <div class="mini">${gb(Math.round(p.usedGB))} / ${gb(p.capGB)}</div>
+        <div class="bar-o"><i class="${pct > (p.hwm||95) ? 'hot':''}" style="width:${Math.min(100,pct)}%"></i></div>
+        <div class="mini">${pct.toFixed(1)}% 사용${p.hwm?` · 고수위 ${p.hwm}%`:''}</div>
+        ${p.freeVolumes !== undefined ? `<div class="mini">여유 볼륨 ${p.freeVolumes} / ${p.volumes}</div>`:''}
+      </div></div>`;
+  }).join('');
+
+  $('#cat-cnt').textContent = `${st.catalog.length}건`;
+  $('#cat').innerHTML = st.catalog.slice(-40).reverse().map(i => `<tr>
+    <td class="m">${i.id}</td><td class="m">${i.pol}</td><td>${i.type}</td>
+    <td class="m">${i.created}</td><td class="m">${i.expires}</td>
+    <td class="r">${gb(i.sizeGB)}</td><td class="m">${i.pool}</td></tr>`).join('')
+    || '<tr><td colspan="7" style="color:var(--soft)">카탈로그가 비어 있습니다.</td></tr>';
+}
+
+function drawRestore(){
+  const sel = $('#rc-pol');
+  if(!sel.options.length)
+    sel.innerHTML = E.POLICIES.map(p => `<option value="${p.id}">${p.name} (${p.mode})</option>`).join('');
+
+  const dates = [...new Set(st.catalog.map(i => i.created))].sort().reverse().slice(0, 30);
+  const keep = $('#rc-date').value;
+  $('#rc-date').innerHTML = dates.map(d => `<option${d===keep?' selected':''}>${d}</option>`).join('')
+    || '<option value="">이력 없음</option>';
+
+  const polId = sel.value || E.POLICIES[0].id;
+  const day = $('#rc-date').value;
+  if(!day){ $('#rc').innerHTML = '<p style="color:var(--soft)">먼저 백업을 실행하십시오.</p>'; return; }
+
+  const r = E.restoreChain(st, polId, day);
+  if(!r || !r.ok){
+    $('#rc').innerHTML = `<p class="err">${r ? r.reason : '분석할 수 없습니다.'}</p>`;
+    return;
+  }
+  $('#rc').innerHTML = `
+    <p><b>${r.need.length}개 이미지</b> · 합계 ${gb(r.totalGB)} · ${r.mode} 증분 방식
+       ${r.skipped ? ` · 중간 증분 ${r.skipped}개는 불필요` : ''}</p>
+    <ul class="chain" style="list-style:none;margin-top:10px">
+      ${r.need.map((i, k) => `<li><span class="k">${k===0?'기준':'적용 '+k}</span>
+        <span>${i.created} · ${i.type} · ${gb(i.sizeGB)} · ${i.pool}</span></li>`).join('')}
+    </ul>`;
+}
+
+function drawFaults(){
+  const F = [['mediaServerDown','미디어 서버 정지 (219)'],
+             ['diskHWM','디스크 풀 고수위 (129)'],
+             ['noScratch','스크래치 볼륨 소진 (96)'],
+             ['slowClient','클라이언트 처리량 저하 (196 유발)']];
+  $('#faults').innerHTML = F.map(([k, label]) =>
+    `<button class="btn ${st.faults[k]?'on':''}" data-f="${k}">${label}</button>`).join('');
+  $('#codes').innerHTML = Object.entries(E.CODES).filter(([c]) => c !== '0').map(([c, v]) =>
+    `<tr><td class="m">${c}</td><td>${v[0]}</td><td>${v[1]}</td><td>${v[2]}</td></tr>`).join('');
+}
+
+function draw(){
+  $('#today').textContent = `다음 실행 ${st.date} (${E.DOW[new Date(st.date).getDay()]})`;
+  drawKPI(); drawTimeline(); drawJobs(); drawLog();
+  drawPolicies(); drawPools(); drawRestore(); drawFaults();
+}
+
+function advance(n){ for(let i = 0; i < n; i++) E.runDay(st); draw(); }
+$('#run1').addEventListener('click', () => advance(1));
+$('#run7').addEventListener('click', () => advance(7));
+$('#run30').addEventListener('click', () => advance(30));
+$('#reset').addEventListener('click', () => { st = E.makeState(E.iso(new Date())); draw(); });
+
+document.addEventListener('click', e => {
+  const f = e.target.closest('[data-f]');
+  if(f){ st.faults[f.dataset.f] = !st.faults[f.dataset.f]; drawFaults(); }
+});
+$('#rc-pol').addEventListener('change', drawRestore);
+$('#rc-date').addEventListener('change', drawRestore);
+
+draw();
+})();
+</script>
+</body>
+</html>
