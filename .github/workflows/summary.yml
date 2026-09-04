@@ -21,16 +21,16 @@ jobs:
 
     steps:
       - name: 소스 체크아웃
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Python 3.12 준비
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
       - name: Node 24 준비
         # 모든 HTML의 인라인 JavaScript를 node --check로 검증합니다.
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           package-manager-cache: false
@@ -117,7 +117,7 @@ jobs:
           always() &&
           (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
         continue-on-error: true
-        uses: actions/ai-inference@v2.1.1
+        uses: actions/ai-inference@v3
         with:
           provider: github-models
           prompt-file: prompt.txt
@@ -166,7 +166,7 @@ jobs:
 
       - name: 제출 검수 리포트 보관
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: submission-review-${{ github.run_number }}
           path: |
