@@ -8,8 +8,6 @@
 
 브라우저에서는 [index.html](index.html)을 열면 전체 포트폴리오를 한 화면에서 탐색할 수 있습니다.
 
-핵심 구성은 다음과 같습니다.
-
 - 서버/NOC: `healthcheck.py`, `noc-dashboard.html`, `server-console.html`
 - 배치 운영: `batch-operations-lab.html`
 - 장애/교대: `incident-lab.html`, `incident_report.py`
@@ -18,39 +16,59 @@
 - Capacity/SLA: `disk_forecast.py`, `capacity_planner.py`, `sla_calculator.py`
 - 백업/인증서: `backup_verify.py`, `backup-simulator.html`, `cert_expiry.py`
 - 네트워크/보안: `network-path.html`, `linux-security-lab.html`
-- 품질/실행: `tools/review_repo.py`, `tools/run_analyze.py`, `tools/execute_repo.py`, `tests/`
+- 품질/실행: `tools/review_repo.py`, `tools/run_analyze.py`, `tools/execute_repo.py`, `tools/summarize_reports.py`, `tests/`
 
 ## 제출 상태 확인
 
-채용 제출 전에는 다음 네 단계를 순서대로 실행할 수 있습니다.
+채용 제출 전에는 다음 다섯 단계를 실행할 수 있습니다.
 
 ```bash
 python3 tools/review_repo.py --report review.md --json-report review.json
 python3 tools/run_analyze.py --manifest portfolio-manifest.json --report execution-report.md --json-report execution-report.json
 python3 tools/execute_repo.py --target all --mode functional --report functional-run.md --json-report functional-run.json --log-dir functional-logs
+python3 tools/summarize_reports.py --review-json review.json --execution-json execution-report.json --functional-json functional-run.json --report deterministic-summary.md --json-report deterministic-summary.json
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
 - `tools/review_repo.py`: 파일 구조, Python/JavaScript/JSON 문법, README 로컬 경로, GitHub Actions 런타임을 검사합니다.
 - `tools/run_analyze.py`: 모든 Git 추적 파일을 유형별로 분석하고 제출 필수 파일 누락 여부를 판정합니다.
 - `tools/execute_repo.py`: 실행 가능한 Python/HTML을 샌드박스 기반 functional 시나리오로 실제 수행합니다.
+- `tools/summarize_reports.py`: 위 검수 JSON 3종을 외부 AI 없이 로컬 Python으로 집계해 최종 `READY/BLOCKED` 요약을 생성합니다.
 - `tests/test_portfolio.py`: 핵심 계산, 정규화, 경계조건, 보고서 생성 로직을 `unittest`로 검증합니다.
-- `portfolio-manifest.json`: 제출 필수 파일과 파일별 역할의 기준입니다.
-- [SUBMISSION.md](SUBMISSION.md): 채용 제출 전 확인 순서와 안전 정책입니다.
 
 결과가 `READY`, functional 결과가 `PASS`, unittest가 성공이면 제출 필수 구성과 자동 검증 기준을 만족한 것입니다.
 
 ## GitHub Actions
 
-- [통합 검수 워크플로](.github/workflows/summary.yml): push/PR/정기 실행에서 품질검수 → 전체 파일 분석 → functional 실행 → Artifact 보관을 수행합니다.
+- [통합 검수 워크플로](.github/workflows/summary.yml): push/PR/정기/수동 실행에서 품질검수 → 전체 파일 분석 → functional 실행 → 로컬 결정적 요약 → Artifact 보관을 수행합니다.
 - [저장소 파일 실행](.github/workflows/run-files.yml): Actions 화면에서 개별 Python/HTML 또는 `all`, `python`, `html`을 선택해 `smoke`/`functional` 모드로 실행합니다.
 - [단위 테스트](.github/workflows/tests.yml): 모든 Python 파일 compile 검사와 `unittest`를 자동 수행합니다.
 - [Dependabot](.github/dependabot.yml): GitHub Actions와 향후 Python 의존성을 주기적으로 확인합니다.
 
+### 외부 AI 서비스에 의존하지 않는 이유
+
+GitHub Models는 2026년 7월 30일 종료되어 기존 inference API가 더 이상 제공되지 않습니다. 따라서 이 저장소의 제출 CI는 `actions/ai-inference`, `provider: github-models`, `models: read` 권한을 사용하지 않습니다.
+
+최종 요약은 다음 구조화 결과만 사용합니다.
+
+```text
+review.json
+      +
+execution-report.json
+      +
+functional-run.json
+      ↓
+tools/summarize_reports.py
+      ↓
+deterministic-summary.md / deterministic-summary.json
+```
+
+이 구조는 모델 retirement, API brownout, 외부 AI 서비스 장애가 저장소의 품질 판정과 제출 상태에 영향을 주지 않도록 합니다.
+
 ## 요구 환경
 
 - Python 3.12 이상
-- Node.js 24 이상 — HTML 인라인 JavaScript 자동 검사용
+- Node.js 24 이상 — HTML 인라인 JavaScript 자동 문법 검사용
 - 브라우저 — HTML 시뮬레이터 실행용
 
 외부 Python 패키지는 필요하지 않습니다. [requirements.txt](requirements.txt)는 이 사실을 명시합니다.
@@ -78,6 +96,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 | [backup_verify.py](backup_verify.py) | Python | 백업 존재·크기·신선도·SHA-256 검증 | `python3 backup_verify.py --help` |
 | [cert_expiry.py](cert_expiry.py) | Python | TLS 인증서 만료 사전 점검 | `python3 cert_expiry.py --help` |
 | [incident_report.py](incident_report.py) | Python | 장애보고서·타임라인·교대 인수인계 생성 | `python3 incident_report.py --help` |
+| [tools/summarize_reports.py](tools/summarize_reports.py) | 품질 | 검수 결과의 외부 AI 비의존 최종 요약 | `python3 tools/summarize_reports.py --help` |
 
 지원 파일은 [check.json](check.json), [domains.txt](domains.txt), [portfolio-manifest.json](portfolio-manifest.json)입니다.
 
@@ -89,7 +108,7 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 ### 2. 배치는 Job 하나가 아니라 선후행과 마감 영향으로 판단
 
-`batch-operations-lab.html`은 독립 Job은 계속 진행하고 실패 Job의 후행만 차단합니다. 재실행 후 후행을 다시 계산하고, Critical Path와 SLA 여유시간이 어떻게 달라지는지 보여 줍니다. 단순 성공/실패보다 **마감 영향과 후행 전파 범위**를 먼저 보는 운영 관점을 반영했습니다.
+`batch-operations-lab.html`은 독립 Job은 계속 진행하고 실패 Job의 후행만 차단합니다. 재실행 후 후행을 다시 계산하고, Critical Path와 SLA 여유시간이 어떻게 달라지는지 보여 줍니다.
 
 ### 3. 알람 수보다 Root Cause 후보를 먼저 찾기
 
@@ -97,11 +116,11 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 
 ### 4. 변경은 작업보다 사전점검과 Rollback 기준이 중요
 
-`change-management-lab.html`은 변경 요청, 영향도 분석, 백업, 사전 Health Check, 적용, 사후 검증, 실패 시 Rollback을 하나의 절차로 다룹니다. 작업 자체보다 **언제 중단하고 이전 상태로 돌아갈지**를 판단하는 데 초점을 둡니다.
+`change-management-lab.html`은 변경 요청, 영향도 분석, 백업, 사전 Health Check, 적용, 사후 검증, 실패 시 Rollback을 하나의 절차로 다룹니다.
 
 ### 5. 장애 대응 결과는 인수인계 가능한 기록으로 남기기
 
-`incident_report.py`는 장애 발생/종료 시각, 영향, 원인, 타임라인, 조치, 재발 방지, 다음 확인 시각을 Markdown 보고서로 만듭니다. 교대 근무에서 다음 근무자가 현재 상태와 남은 조치를 바로 파악할 수 있도록 별도 인수인계 섹션을 포함합니다.
+`incident_report.py`는 장애 발생/종료 시각, 영향, 원인, 타임라인, 조치, 재발 방지, 다음 확인 시각을 Markdown 보고서로 만듭니다.
 
 ### 6. 임계 초과 후 대응보다 Capacity/SLA를 미리 계산
 
@@ -118,7 +137,8 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 7. Markdown 로컬 링크와 저장소 경로를 확인합니다.
 8. `portfolio-manifest.json`의 제출 필수 파일이 Git에 추적되는지 확인합니다.
 9. `unittest`에서 기존/신규 도구의 핵심 함수와 경계조건을 검증합니다.
-10. 소스와 중복되는 ZIP은 저장소에 커밋하지 않고 Actions Artifact/Release로 분리합니다.
+10. 검수 JSON 3종을 `tools/summarize_reports.py`가 로컬에서 집계합니다.
+11. 소스와 중복되는 ZIP은 저장소에 커밋하지 않고 Actions Artifact/Release로 분리합니다.
 
 ## 안전 실행 정책
 
@@ -135,9 +155,9 @@ CI는 실제 운영 시스템을 변경하지 않습니다.
 
 **학습·확장 목적으로 구현한 영역**에는 방화벽 정책 설계, DNS 장애 시나리오, 인증서 발급·갱신, 항온항습 계통 등 실제 담당 범위를 넘어서는 주제가 포함됩니다. 해당 영역은 실무 경험으로 과장하지 않고 학습/시뮬레이션 범위로 구분합니다.
 
-## AI 활용 원칙
+## 생성형 AI 활용 원칙
 
-코드 작성과 정리 과정에서 생성형 AI를 보조 도구로 활용할 수 있지만, 저장소의 사실 판정은 AI가 아니라 결정적 검사기와 테스트가 수행합니다. AI 요약은 이미 생성된 검수·실행 결과를 읽기 쉽게 정리하는 역할만 담당합니다.
+코드 작성과 정리 과정에서 생성형 AI를 보조 도구로 활용할 수 있지만, 저장소의 사실 판정과 CI 성공 여부에는 외부 AI 서비스를 사용하지 않습니다. 품질 판정은 `review_repo.py`, `run_analyze.py`, `execute_repo.py`, `summarize_reports.py`, `unittest`의 결정적 결과만 사용합니다.
 
 ## 라이선스
 
