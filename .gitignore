@@ -30,7 +30,8 @@ run-results.json
 pre-run-review.md
 pre-run-review.json
 unit-test-results.txt
-prompt.txt
+deterministic-summary.md
+deterministic-summary.json
 
 # Generated portfolio examples/reports
 incident-report.md
