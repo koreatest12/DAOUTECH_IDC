@@ -12,12 +12,17 @@ Thumbs.db
 
 # Generated runtime data
 *.log
+execution-logs/
 
 # Deterministic review / submission reports
 review.md
 review.json
 execution-report.md
 execution-report.json
+run-results.md
+run-results.json
+pre-run-review.md
+pre-run-review.json
 prompt.txt
 
 # Distribution archives belong in GitHub Releases / Actions Artifacts
