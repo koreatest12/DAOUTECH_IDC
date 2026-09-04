@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>배치 운영·Control-M 시뮬레이터</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:dark;background:#0b1220;color:#e5edf8}*{box-sizing:border-box}body{margin:0;background:#0b1220}header{padding:28px 24px 18px;border-bottom:1px solid #243047}h1{margin:0 0 8px;font-size:28px}header p{margin:0;color:#9fb0c8}.wrap{max-width:1180px;margin:auto;padding:22px}.controls,.stats,.panel{display:flex;gap:10px;flex-wrap:wrap}.controls{margin-bottom:16px}button,select{background:#172338;color:#eef6ff;border:1px solid #30405e;border-radius:9px;padding:9px 12px;cursor:pointer}button:hover{background:#213250}.stats{margin:14px 0}.stat{min-width:145px;background:#121d30;border:1px solid #253653;border-radius:12px;padding:13px}.stat b{display:block;font-size:22px;margin-top:5px}.grid{display:grid;grid-template-columns:1.35fr .65fr;gap:16px}@media(max-width:900px){.grid{grid-template-columns:1fr}}.card{background:#111c2d;border:1px solid #253653;border-radius:14px;padding:16px}table{width:100%;border-collapse:collapse;font-size:14px}th,td{padding:9px;border-bottom:1px solid #263753;text-align:left}th{color:#9fb0c8}.ok{color:#64d98b}.warn{color:#ffd166}.bad{color:#ff7070}.muted{color:#8ea0ba}.tag{padding:2px 7px;border-radius:999px;background:#24324a;font-size:12px}.timeline{display:flex;flex-direction:column;gap:8px}.barrow{display:grid;grid-template-columns:120px 1fr 72px;gap:8px;align-items:center}.bar{height:22px;background:#18243a;border-radius:6px;position:relative;overflow:hidden}.bar span{position:absolute;height:100%;background:#476c9b;border-radius:6px}.bar span.critical{background:#95614a}.notice{margin-top:12px;padding:12px;border-radius:10px;background:#0e2630;border:1px solid #205367}code{color:#a8d1ff}</style>
+</head>
+<body>
+<header>
+<h1>배치 운영·Control-M 시뮬레이터</h1>
+<p>선후행, 병렬 실행, 장애 전파, 재실행, SLA 마감, Critical Path를 한 화면에서 확인합니다.</p>
+</header>
+<div class="wrap">
+<div class="controls">
+<button onclick="runScenario('normal')">정상 실행</button>
+<button onclick="runScenario('failure')">장애 주입</button>
+<button onclick="rerunFailed()">실패 Job 재실행</button>
+<button onclick="resetAll()">초기화</button>
+<select id="failureJob"><option value="US_SETTLE">US_SETTLE 장애</option><option value="EU_POST">EU_POST 장애</option><option value="KR_CLOSE">KR_CLOSE 장애</option></select>
+</div>
+<div class="stats">
+<div class="stat">총 Job<b id="sTotal">0</b></div><div class="stat">성공<b id="sOk" class="ok">0</b></div><div class="stat">실패/차단<b id="sFail" class="bad">0</b></div><div class="stat">예상 종료<b id="sEnd">-</b></div><div class="stat">SLA 여유<b id="sSlack">-</b></div>
+</div>
+<div class="grid">
+<section class="card"><h2>Job 흐름</h2><table><thead><tr><th>Job</th><th>권역</th><th>선행</th><th>상태</th><th>시작</th><th>종료</th><th>소요</th></tr></thead><tbody id="jobs"></tbody></table></section>
+<section class="card"><h2>운영 판단</h2><div id="decision" class="muted">시나리오를 실행하십시오.</div><div class="notice"><b>설계 포인트</b><br>실패 Job의 후행만 차단하고 독립 Job은 계속 진행합니다. 재실행 시 차단된 후행을 다시 계산하여 마감 영향이 줄어드는지 확인합니다.</div></section>
+</div>
+<section class="card" style="margin-top:16px"><h2>Critical Path / 타임라인</h2><div id="timeline" class="timeline"></div></section>
+</div>
+<script>
+const baseJobs=[
+{id:'KR_OPEN',region:'KR',dur:8,deps:[]},{id:'KR_LEDGER',region:'KR',dur:18,deps:['KR_OPEN']},{id:'KR_CLOSE',region:'KR',dur:14,deps:['KR_LEDGER']},
+{id:'US_PRE',region:'US',dur:10,deps:[]},{id:'US_SETTLE',region:'US',dur:24,deps:['US_PRE']},{id:'US_POST',region:'US',dur:12,deps:['US_SETTLE']},
+{id:'EU_PRE',region:'EU',dur:7,deps:[]},{id:'EU_POST',region:'EU',dur:20,deps:['EU_PRE']},
+{id:'GLOBAL_AGG',region:'GLOBAL',dur:16,deps:['KR_CLOSE','US_POST','EU_POST']},{id:'REPORT',region:'GLOBAL',dur:9,deps:['GLOBAL_AGG']}
+];
+const SLA=120;let jobs=[];let injected=null;
+function resetAll(){jobs=baseJobs.map(j=>({...j,status:'WAIT',start:null,end:null}));injected=null;render();}
+function topo(){const done=new Set(),out=[];while(out.length<jobs.length){const ready=jobs.filter(j=>!done.has(j.id)&&j.deps.every(d=>done.has(d)));if(!ready.length)throw new Error('dependency cycle');ready.forEach(j=>{done.add(j.id);out.push(j)});}return out;}
+function schedule(){const ordered=topo();for(const j of ordered){const deps=j.deps.map(id=>jobs.find(x=>x.id===id));if(deps.some(d=>['FAILED','BLOCKED'].includes(d.status))){j.status='BLOCKED';j.start=null;j.end=null;continue;}j.start=deps.length?Math.max(...deps.map(d=>d.end||0)):0;if(injected===j.id){j.status='FAILED';j.end=j.start+j.dur;continue;}j.status='SUCCESS';j.end=j.start+j.dur;}render();}
+function runScenario(kind){resetAll();if(kind==='failure')injected=document.getElementById('failureJob').value;schedule();}
+function rerunFailed(){if(!injected)return;const failed=jobs.find(j=>j.id===injected);if(!failed)return;injected=null;jobs.forEach(j=>{if(j.status==='BLOCKED'){j.status='WAIT';j.start=null;j.end=null;}if(j.id===failed.id){j.status='WAIT';j.start=null;j.end=null;}});schedule();}
+function criticalPath(){const ordered=topo(),score={};for(const j of ordered){const prev=j.deps.length?Math.max(...j.deps.map(d=>score[d].value)):0;const parent=j.deps.length?j.deps.reduce((a,b)=>score[a].value>=score[b].value?a:b):null;score[j.id]={value:prev+j.dur,parent};}let cur=ordered.reduce((a,b)=>score[a.id].value>=score[b.id].value?a:b).id;const path=[];while(cur){path.unshift(cur);cur=score[cur].parent;}return new Set(path);}
+function render(){const tbody=document.getElementById('jobs');tbody.innerHTML='';for(const j of jobs){const cls=j.status==='SUCCESS'?'ok':j.status==='FAILED'||j.status==='BLOCKED'?'bad':'muted';const tr=document.createElement('tr');tr.innerHTML=`<td><b>${j.id}</b></td><td><span class="tag">${j.region}</span></td><td>${j.deps.join(', ')||'-'}</td><td class="${cls}">${j.status}</td><td>${j.start??'-'}</td><td>${j.end??'-'}</td><td>${j.dur}m</td>`;tbody.appendChild(tr);}const ok=jobs.filter(j=>j.status==='SUCCESS').length,fail=jobs.filter(j=>['FAILED','BLOCKED'].includes(j.status)).length,end=Math.max(0,...jobs.filter(j=>j.end!=null).map(j=>j.end));document.getElementById('sTotal').textContent=jobs.length;document.getElementById('sOk').textContent=ok;document.getElementById('sFail').textContent=fail;document.getElementById('sEnd').textContent=end?end+'m':'-';document.getElementById('sSlack').textContent=end?Math.max(SLA-end,0)+'m':'-';const d=document.getElementById('decision');if(fail)d.innerHTML=`<p class="bad"><b>${fail}개 Job 영향</b></p><p>장애 원인을 먼저 확인한 뒤 실패 Job만 재실행하고, BLOCKED 후행의 재계산 결과로 SLA 영향을 판단해야 합니다.</p>`;else if(ok)d.innerHTML=`<p class="ok"><b>전건 성공</b></p><p>예상 종료 ${end}분, SLA ${SLA}분 기준 여유 ${SLA-end}분입니다. Critical Path에 포함된 Job 지연이 마감에 직접 영향을 줍니다.</p>`;else d.textContent='시나리오를 실행하십시오.';renderTimeline();}
+function renderTimeline(){const root=document.getElementById('timeline');root.innerHTML='';const cp=criticalPath();const max=Math.max(SLA,...jobs.map(j=>j.end||0));for(const j of jobs){const row=document.createElement('div');row.className='barrow';const left=j.start==null?0:j.start/max*100,width=j.end==null?0:(j.end-j.start)/max*100;row.innerHTML=`<div>${j.id}</div><div class="bar"><span class="${cp.has(j.id)?'critical':''}" style="left:${left}%;width:${width}%"></span></div><div>${j.status}</div>`;root.appendChild(row);}}
+resetAll();
+</script>
+</body></html>
