@@ -1,0 +1,55 @@
+name: 포트폴리오 단위 테스트
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Python 표준 라이브러리 단위 테스트
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v6
+
+      - name: Python 3.12 준비
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Python 전체 compile 검사
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q .
+
+      - name: unittest 실행
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee unit-test-results.txt
+
+      - name: 결과 요약
+        if: always()
+        run: |
+          {
+            echo '# 포트폴리오 단위 테스트'
+            echo ''
+            echo '```text'
+            tail -n 40 unit-test-results.txt 2>/dev/null || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 테스트 결과 보관
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: unit-test-results-${{ github.run_number }}
+          path: unit-test-results.txt
+          retention-days: 14
+          if-no-files-found: warn
