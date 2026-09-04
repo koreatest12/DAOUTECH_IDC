@@ -2,9 +2,7 @@ name: 저장소 파일 실행
 
 # 저장소의 실행 가능한 Python 도구와 HTML 시뮬레이터를
 # GitHub Actions에서 직접 선택하여 수행합니다.
-#
 # functional 모드에서도 운영 시스템을 변경하지 않습니다.
-# 서비스 워치독은 dry-run, 백업/이력/로그는 임시 샌드박스를 사용합니다.
 
 on:
   workflow_dispatch:
@@ -24,10 +22,17 @@ on:
           - svc_watchdog.py
           - backup_verify.py
           - cert_expiry.py
+          - incident_report.py
+          - alert_correlator.py
+          - capacity_planner.py
+          - sla_calculator.py
+          - index.html
           - noc-dashboard.html
+          - batch-operations-lab.html
+          - incident-lab.html
+          - change-management-lab.html
           - linux-security-lab.html
           - backup-simulator.html
-          - incident-lab.html
           - server-console.html
           - network-path.html
       mode:
@@ -46,8 +51,7 @@ jobs:
   execute:
     name: ${{ inputs.target }} · ${{ inputs.mode }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    timeout-minutes: 20
     steps:
       - name: 소스 체크아웃
         uses: actions/checkout@v6
@@ -64,7 +68,6 @@ jobs:
           package-manager-cache: false
 
       - name: 런타임 및 실행 대상 확인
-        shell: bash
         run: |
           set -euo pipefail
           python3 --version
@@ -72,16 +75,12 @@ jobs:
           python3 tools/execute_repo.py --list
 
       - name: 실행 전 저장소 품질 확인
-        shell: bash
         run: |
           set -euo pipefail
-          python3 tools/review_repo.py \
-            --report pre-run-review.md \
-            --json-report pre-run-review.json
+          python3 tools/review_repo.py --report pre-run-review.md --json-report pre-run-review.json
 
       - name: 선택 대상 실제 수행
         id: execute
-        shell: bash
         env:
           RUN_TARGET: ${{ inputs.target }}
           RUN_MODE: ${{ inputs.mode }}
@@ -96,7 +95,6 @@ jobs:
 
       - name: 실행 결과 요약
         if: always()
-        shell: bash
         env:
           RUN_TARGET: ${{ inputs.target }}
           RUN_MODE: ${{ inputs.mode }}
@@ -107,14 +105,8 @@ jobs:
             echo "- 대상: **${RUN_TARGET}**"
             echo "- 모드: **${RUN_MODE}**"
             echo "- 실행 단계: **${{ steps.execute.outcome }}**"
-            echo "- Python: **$(python3 --version 2>/dev/null || echo unavailable)**"
-            echo "- Node: **$(node --version 2>/dev/null || echo unavailable)**"
             echo ""
-            if [ -s run-results.md ]; then
-              cat run-results.md
-            else
-              echo "> 실행 결과 파일이 생성되지 않았습니다. 위 로그를 확인하십시오."
-            fi
+            if [ -s run-results.md ]; then cat run-results.md; else echo "> 실행 결과 파일이 없습니다."; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 실행 결과 보관
