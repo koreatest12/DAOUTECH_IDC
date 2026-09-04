@@ -2,13 +2,12 @@ version: 2
 
 # Dependabot은 의존성 업데이트 PR을 만들고,
 # 해당 PR은 .github/workflows/summary.yml의 pull_request 트리거를 통해
-# 저장소 전체 파일 검수·안전 실행·제출 준비도 분석을 자동 수행합니다.
+# 저장소 전체 파일 검수·functional 실행·제출 준비도 분석을 자동 수행합니다.
 #
 # 안전 정책:
 # - minor/patch는 생태계별로 묶어서 검증합니다.
-# - major는 별도 PR로 분리해 호환성을 확인합니다.
-# - actions/ai-inference v3는 현재 github-models provider 설정과 호환 방식이 달라
-#   major 자동 제안에서 제외하고 v2 계열 업데이트만 추적합니다.
+# - major는 그룹에서 제외되어 별도 PR로 검토합니다.
+# - GitHub Models/actions/ai-inference는 사용하지 않습니다.
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -28,10 +27,6 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    ignore:
-      - dependency-name: "actions/ai-inference"
-        update-types:
-          - "version-update:semver-major"
 
   # 현재 requirements.txt에는 외부 패키지가 없지만,
   # 향후 패키지가 추가되면 별도 설정 변경 없이 자동 추적합니다.
