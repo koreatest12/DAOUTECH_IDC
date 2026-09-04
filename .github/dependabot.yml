@@ -1,0 +1,39 @@
+version: 2
+
+# Dependabot은 의존성 업데이트 PR을 만들고,
+# 해당 PR은 .github/workflows/summary.yml의 pull_request 트리거를 통해
+# 저장소 전체 파일 검수·안전 실행·제출 준비도 분석을 자동 수행합니다.
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "Asia/Seoul"
+    target-branch: "main"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(actions)"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # 현재 requirements.txt에는 외부 패키지가 없지만,
+  # 향후 패키지가 추가되면 별도 설정 변경 없이 자동 추적합니다.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:15"
+      timezone: "Asia/Seoul"
+    target-branch: "main"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(python)"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
