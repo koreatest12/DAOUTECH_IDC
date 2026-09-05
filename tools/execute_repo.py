@@ -160,8 +160,35 @@ def run_python(name: str, mode: str, sandbox: Path, log_dir: Path) -> list[dict[
 
 def chrome() -> str | None:
     for name in ("google-chrome","google-chrome-stable","chromium","chromium-browser"):
-        if shutil.which(name): return shutil.which(name)
+        found = shutil.which(name)
+        if found:
+            return found
     return None
+
+
+def browser_command(binary: str, name: str, sandbox: Path) -> list[str]:
+    """Use an isolated profile so sequential headless runs cannot lock each other."""
+    profile = sandbox / "chrome-profiles" / Path(name).stem
+    profile.mkdir(parents=True, exist_ok=True)
+    return [
+        binary,
+        "--headless=new",
+        "--disable-gpu",
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-background-networking",
+        "--disable-default-apps",
+        "--disable-extensions",
+        "--disable-sync",
+        "--metrics-recording-only",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--allow-file-access-from-files",
+        "--virtual-time-budget=3000",
+        f"--user-data-dir={profile}",
+        "--dump-dom",
+        (ROOT/name).resolve().as_uri(),
+    ]
 
 
 def run_html(name: str, mode: str, sandbox: Path, log_dir: Path) -> list[dict[str, Any]]:
@@ -173,9 +200,13 @@ def run_html(name: str, mode: str, sandbox: Path, log_dir: Path) -> list[dict[st
         if not script.strip(): continue
         js=sandbox/f"{Path(name).stem}-{i}.js"; js.write_text(script,encoding="utf-8")
         out.append(record(f"{name}#js{i}",[node,"--check",str(js)],log_dir,{0},"Inline JavaScript syntax"))
-    if mode == "functional" and chrome():
-        cmd=[chrome(),"--headless","--disable-gpu","--no-sandbox","--disable-dev-shm-usage","--allow-file-access-from-files","--dump-dom",(ROOT/name).resolve().as_uri()]
-        out.append(record(f"{name}#browser",cmd,log_dir,{0},"Headless browser loads actual HTML",45))
+    binary = chrome()
+    if mode == "functional" and binary:
+        cmd = browser_command(binary, name, sandbox)
+        out.append(record(
+            f"{name}#browser", cmd, log_dir, {0},
+            "Isolated headless browser loads actual HTML with bounded virtual time", 30,
+        ))
     if not out:
         out.append({"target":name,"status":"OK","command":"HTML parse","exit_code":0,"duration_ms":0,"evidence":f"inline_scripts={len(parser.scripts)}","note":"HTML parsed","log":""})
     return out
@@ -194,7 +225,7 @@ def render(records: list[dict[str, Any]], target: str, mode: str) -> str:
     for r in records:
         detail="; ".join(x for x in (r.get("evidence",""),r.get("note","")) if x).replace("|","\\|")
         lines.append(f"| {r['status']} | `{r['target']}` | {r.get('exit_code')} | {detail} |")
-    lines += ["","## 안전 정책","","- 서비스 워치독은 `--dry-run`만 사용합니다.","- 백업/이력/보고서 입력은 임시 샌드박스에 생성합니다.","- 인증서 검사는 읽기 전용 TLS 연결만 수행합니다.","- HTML은 JavaScript 검사 후 가능한 Runner에서 headless 브라우저로 실제 로딩합니다.",""]
+    lines += ["","## 안전 정책","","- 서비스 워치독은 `--dry-run`만 사용합니다.","- 백업/이력/보고서 입력은 임시 샌드박스에 생성합니다.","- 인증서 검사는 읽기 전용 TLS 연결만 수행합니다.","- HTML은 JavaScript 검사 후 격리된 headless 브라우저 profile과 제한된 virtual time으로 실제 로딩합니다.",""]
     return "\n".join(lines)
 
 
