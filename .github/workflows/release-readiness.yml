@@ -1,0 +1,123 @@
+name: 포트폴리오 릴리스 준비·전체 패키징
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 릴리스 채널
+        required: true
+        default: candidate
+        type: choice
+        options:
+          - candidate
+          - portfolio-site
+          - tagged
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  release-readiness:
+    name: 전체 검증·면접 증거·릴리스 Bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v6
+
+      - name: Python 준비
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Node 준비
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: 전체 저장소 품질 검수
+        run: python3 tools/review_repo.py --report review.md --json-report review.json
+
+      - name: 전체 파일 실행·분석
+        run: python3 tools/run_analyze.py --manifest portfolio-manifest.json --report execution-report.md --json-report execution-report.json
+
+      - name: 전체 functional 실행
+        run: python3 tools/execute_repo.py --target all --mode functional --report functional-run.md --json-report functional-run.json --log-dir functional-logs
+
+      - name: 운영 시나리오 회귀 검증
+        run: python3 scenario_runner.py scenarios --report scenario-report.md --json-report scenario-report.json
+
+      - name: 면접 Lifecycle 준비도
+        run: |
+          python3 tools/portfolio_manager.py \
+            --readiness-report interview-readiness.md \
+            --json-report interview-readiness.json \
+            --inventory-report feature-inventory.md \
+            --upgrade-report upgrade-plan.md \
+            --fail-on-blocked
+
+      - name: 단위 테스트
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v | tee unit-test-results.txt
+
+      - name: 결정적 제출 요약
+        run: |
+          python3 tools/summarize_reports.py \
+            --review-json review.json \
+            --execution-json execution-report.json \
+            --functional-json functional-run.json \
+            --report deterministic-summary.md \
+            --json-report deterministic-summary.json
+
+      - name: 통합 HTML 품질 리포트
+        run: |
+          python3 tools/portfolio_report.py \
+            --review review.json \
+            --execution execution-report.json \
+            --functional functional-run.json \
+            --summary deterministic-summary.json \
+            --scenarios scenario-report.json \
+            --output portfolio-report.html
+
+      - name: 전체 릴리스 Bundle 구성
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf release-bundle
+          mkdir -p release-bundle/source release-bundle/evidence
+          git ls-files -z | xargs -0 -I{} cp --parents "{}" release-bundle/source/
+          cp review.md review.json release-bundle/evidence/
+          cp execution-report.md execution-report.json release-bundle/evidence/
+          cp functional-run.md functional-run.json release-bundle/evidence/
+          cp scenario-report.md scenario-report.json release-bundle/evidence/
+          cp deterministic-summary.md deterministic-summary.json release-bundle/evidence/
+          cp interview-readiness.md interview-readiness.json release-bundle/evidence/
+          cp feature-inventory.md upgrade-plan.md portfolio-report.html unit-test-results.txt release-bundle/evidence/
+          printf '%s\n' "commit=${GITHUB_SHA}" "event=${GITHUB_EVENT_NAME}" "ref=${GITHUB_REF}" > release-bundle/RELEASE-METADATA.txt
+
+      - name: 릴리스 Bundle 보관
+        uses: actions/upload-artifact@v6
+        with:
+          name: portfolio-release-${{ github.run_number }}-${{ inputs.channel || 'tagged' }}
+          path: release-bundle/
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: 결과 요약
+        shell: bash
+        run: |
+          {
+            echo "# 포트폴리오 릴리스 준비"
+            echo ""
+            echo "- Commit: **${GITHUB_SHA}**"
+            echo "- Ref: **${GITHUB_REF}**"
+            echo "- Channel: **${{ inputs.channel || 'tagged' }}**"
+            echo ""
+            cat interview-readiness.md
+            echo ""
+            cat deterministic-summary.md
+          } >> "$GITHUB_STEP_SUMMARY"
