@@ -41,7 +41,7 @@ python3 alert_correlator.py <alerts.json>
 4. 강제 완료는 후행 데이터 정합성 영향을 확인한 뒤 판단합니다.
 5. 예상 완료시간이 SLA를 넘으면 즉시 마감 영향으로 에스컬레이션합니다.
 
-실습: `batch-operations-lab.html`, `scenarios/002-batch-critical-path.json`
+실습: `batch-operations-lab.html`, `../scenarios/002-batch-critical-path.json`
 
 ## 4. 변경 작업 및 Rollback
 
@@ -66,7 +66,7 @@ Rollback 조건 예시:
 - SLA 임계 도달 위험
 - 원인 확인 없이 영향 범위 확대
 
-실습: `change-management-lab.html`, `scenarios/005-change-rollback.json`
+실습: `change-management-lab.html`, `../scenarios/005-change-rollback.json`
 
 ## 5. 백업 검증
 
@@ -97,7 +97,7 @@ python3 backup_verify.py manifest.json
 
 DNS 장애에서는 IP 직접 통신 여부와 이름 해석 결과를 분리해 확인합니다.
 
-실습: `network-path.html`, `scenarios/004-dns-path-failure.json`
+실습: `network-path.html`, `../scenarios/004-dns-path-failure.json`
 
 ## 7. Capacity와 SLA
 
