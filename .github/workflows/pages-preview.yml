@@ -1,0 +1,66 @@
+name: 포트폴리오 Pages 준비
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-preview:
+    name: 정적 포트폴리오 사이트 검증·패키징
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v6
+
+      - name: Python 준비
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Node 준비
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: HTML/JavaScript 품질 검증
+        run: |
+          set -euo pipefail
+          python3 tools/review_repo.py --report pages-review.md --json-report pages-review.json
+          python3 tools/execute_repo.py --target html --mode functional --report pages-functional.md --json-report pages-functional.json --log-dir pages-functional-logs
+
+      - name: 배포 디렉터리 구성
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp index.html _site/
+          cp noc-dashboard.html batch-operations-lab.html incident-lab.html change-management-lab.html _site/
+          cp linux-security-lab.html backup-simulator.html server-console.html network-path.html _site/
+          cp README.md LICENSE _site/
+          printf '%s\n' 'This site is a static portfolio preview. Operational Python tools remain in the GitHub repository.' > _site/DEPLOYMENT-NOTE.txt
+
+      - name: Pages 호환 Artifact 보관
+        uses: actions/upload-artifact@v6
+        with:
+          name: pages-ready-site-${{ github.run_number }}
+          path: _site/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: 결과 요약
+        run: |
+          {
+            echo '# GitHub Pages 준비 상태'
+            echo ''
+            echo '- 정적 사이트 검증: **PASS**'
+            echo '- HTML functional 검증: **PASS**'
+            echo '- 배포 Artifact: **pages-ready-site-${{ github.run_number }}**'
+            echo '- 현재 저장소 Pages 설정이 활성화되면 `actions/configure-pages@v5`, `actions/upload-pages-artifact@v4`, `actions/deploy-pages@v4` 구조로 즉시 전환할 수 있습니다.'
+          } >> "$GITHUB_STEP_SUMMARY"
