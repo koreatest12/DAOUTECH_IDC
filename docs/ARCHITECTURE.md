@@ -41,12 +41,12 @@ flowchart TD
 
 ## 결정적 품질 검증 계층
 
-1. `tools/review_repo.py` — 구조, 문법, README 경로, Action 런타임 검사
-2. `tools/run_analyze.py` — 모든 Git 추적 파일 분석 및 제출 필수 파일 검사
-3. `tools/execute_repo.py` — 안전한 fixture/sandbox 기반 실제 functional 실행
+1. `../tools/review_repo.py` — 구조, 문법, README 경로, Action 런타임 검사
+2. `../tools/run_analyze.py` — 모든 Git 추적 파일 분석 및 제출 필수 파일 검사
+3. `../tools/execute_repo.py` — 안전한 fixture/sandbox 기반 실제 functional 실행
 4. `scenario_runner.py` — 운영 시나리오의 Root Cause·후행 영향·SLA 위험 계산
-5. `tools/summarize_reports.py` — 외부 AI 없이 최종 READY/BLOCKED 집계
-6. `tools/portfolio_report.py` — 모든 결과를 standalone HTML로 통합
+5. `../tools/summarize_reports.py` — 외부 AI 없이 최종 READY/BLOCKED 집계
+6. `../tools/portfolio_report.py` — 모든 결과를 standalone HTML로 통합
 7. `tests/` — 핵심 계산과 경계조건 회귀 테스트
 8. CodeQL — Python/JavaScript 정적 보안 분석
 
