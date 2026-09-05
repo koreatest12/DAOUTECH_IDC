@@ -13,6 +13,17 @@ from typing import Any
 SEVERITY = {"INFO": 0, "WARN": 1, "CRIT": 2, "SEV3": 3, "SEV2": 4, "SEV1": 5}
 
 
+def configure_console() -> None:
+    """Windows 기본 cp1252 콘솔에서도 한국어 결과를 안전하게 출력합니다."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                pass
+
+
 @dataclass
 class ScenarioResult:
     scenario_id: str
@@ -189,6 +200,7 @@ def render(results: list[ScenarioResult]) -> str:
 
 
 def main() -> int:
+    configure_console()
     ap = argparse.ArgumentParser(description="IDC 운영 시나리오 결정적 실행·검증")
     ap.add_argument("path", nargs="?", default="scenarios", help="시나리오 JSON 또는 디렉터리")
     ap.add_argument("--report", default="scenario-report.md")
