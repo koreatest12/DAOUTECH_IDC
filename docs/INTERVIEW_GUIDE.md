@@ -15,15 +15,15 @@
 | 영역 | 먼저 보여줄 파일 | 면접에서 설명할 핵심 |
 |---|---|---|
 | 서버/NOC | `healthcheck.py`, `noc-dashboard.html` | 임계치, 상태코드, 1차 판단, 오탐 방지 |
-| 배치 | `batch-operations-lab.html`, `scenarios/002-batch-critical-path.json` | 선후행, Critical Path, 재실행, 마감/SLA |
+| 배치 | `batch-operations-lab.html`, `../scenarios/002-batch-critical-path.json` | 선후행, Critical Path, 재실행, 마감/SLA |
 | 장애 | `incident-lab.html`, `scenario_runner.py` | Root Cause 후보, 영향 범위, 에스컬레이션 |
 | 로그/알람 | `log_analyzer.py`, `alert_correlator.py` | 로그 정규화, 급증 탐지, 다중 알람 상관분석 |
 | 백업 | `backup_verify.py`, `backup-simulator.html` | SUCCESS와 복구 가능성의 차이, SHA-256 |
-| 변경 | `change-management-lab.html`, `scenarios/005-change-rollback.json` | Pre/Post Check, Rollback 조건 |
-| 네트워크 | `network-path.html`, `scenarios/004-dns-path-failure.json` | IP/DNS/Port/L4 구간 분리 진단 |
+| 변경 | `change-management-lab.html`, `../scenarios/005-change-rollback.json` | Pre/Post Check, Rollback 조건 |
+| 네트워크 | `network-path.html`, `../scenarios/004-dns-path-failure.json` | IP/DNS/Port/L4 구간 분리 진단 |
 | Capacity/SLA | `capacity_planner.py`, `disk_forecast.py`, `sla_calculator.py` | 추세, 임계 도달, 허용 장애시간 |
-| 품질/보안 | `.github/workflows/summary.yml`, `.github/workflows/tests.yml`, `.github/workflows/codeql.yml` | deterministic gate, 교차환경, 정적 보안 분석 |
-| 릴리스 | `.github/workflows/release-readiness.yml`, `tools/portfolio_manager.py` | 면접 직전 재검증, Artifact, 변경 이력 |
+| 품질/보안 | `../.github/workflows/summary.yml`, `../.github/workflows/tests.yml`, `../.github/workflows/codeql.yml` | deterministic gate, 교차환경, 정적 보안 분석 |
+| 릴리스 | `../.github/workflows/release-readiness.yml`, `../tools/portfolio_manager.py` | 면접 직전 재검증, Artifact, 변경 이력 |
 
 ## 3. 답변할 때 지켜야 할 경계
 
@@ -43,7 +43,7 @@
 
 ### Q2. 배치 장애에서 실패 Job만 보면 안 되는 이유는 무엇입니까?
 
-근거: `batch-operations-lab.html`, `scenarios/002-batch-critical-path.json`
+근거: `batch-operations-lab.html`, `../scenarios/002-batch-critical-path.json`
 
 답변 포인트: 후행 의존성과 Critical Path 때문에 작은 실패도 마감 영향이 커질 수 있어 후행 범위와 SLA 잔여시간을 같이 확인합니다.
 
@@ -61,37 +61,30 @@
 
 ### Q5. 백업 성공인데도 복구가 안 될 수 있습니까?
 
-근거: `backup_verify.py`, `scenarios/003-backup-integrity.json`
+근거: `backup_verify.py`, `../scenarios/003-backup-integrity.json`
 
 답변 포인트: 파일 존재뿐 아니라 크기, 신선도, 무결성, 복구 체인을 별도로 검증해야 합니다.
 
 ### Q6. Windows/Linux를 왜 둘 다 테스트합니까?
 
-근거: `.github/workflows/tests.yml`
+근거: `../.github/workflows/tests.yml`
 
 답변 포인트: 경로·인코딩·프로세스·명령 차이로 같은 Python 코드도 OS별 문제가 생길 수 있습니다. 실제로 Windows stdout 인코딩 문제를 검증 중 발견해 수정한 경험을 설명할 수 있습니다.
 
 ### Q7. Dependabot major 업데이트를 왜 자동 그룹/병합하지 않습니까?
 
-근거: `.github/dependabot.yml`
+근거: `../.github/dependabot.yml`
 
 답변 포인트: major는 호환성 파괴 가능성이 높으므로 minor/patch와 분리해 실제 검증 후 검토합니다.
 
 ### Q8. functional test와 CodeQL의 차이는 무엇입니까?
 
-근거: `tools/execute_repo.py`, `.github/workflows/codeql.yml`
+근거: `../tools/execute_repo.py`, `../.github/workflows/codeql.yml`
 
 답변 포인트: functional은 실제 입력/출력/종료코드 동작을 확인하고, CodeQL은 실행만으로 드러나지 않는 코드 패턴과 보안 문제를 정적으로 분석합니다.
 
 ## 5. 면접 직전 체크
 
-```bash
-python3 tools/portfolio_manager.py --fail-on-blocked
-python3 tools/review_repo.py --report review.md --json-report review.json
-python3 tools/run_analyze.py --manifest portfolio-manifest.json --report execution-report.md --json-report execution-report.json
-python3 tools/execute_repo.py --target all --mode functional --report functional-run.md --json-report functional-run.json --log-dir functional-logs
-python3 scenario_runner.py scenarios --report scenario-report.md --json-report scenario-report.json
-python3 -m unittest discover -s tests -p 'test_*.py' -v
-```
+전체 명령은 저장소 루트의 [README 실행 절차](../README.md)와 [제출·면접 준비 가이드](../SUBMISSION.md)를 사용합니다.
 
 최종적으로 `interview-readiness.md`가 `READY`, 기존 deterministic summary가 `READY`, 관련 GitHub Actions가 모두 성공인지 확인합니다.
