@@ -12,7 +12,7 @@
     {
       "id": "quality-security",
       "name": "품질·CI·보안·릴리스",
-      "categories": ["ci", "ci-execution", "ci-test", "security-ci", "deployment-ci", "release-ci", "quality", "summary", "reporting", "test", "lifecycle-management"],
+      "categories": ["ci", "ci-execution", "ci-test", "security-ci", "deployment-ci", "release-ci", "quality", "execution", "summary", "reporting", "test", "lifecycle-management"],
       "interview_focus": "코드가 실제로 검증되는 경로, 실패 게이트, 교차환경, CodeQL, 릴리스 증거를 설명할 수 있어야 합니다."
     },
     {
@@ -66,48 +66,12 @@
     {"id": "tagged", "purpose": "v* 태그 기준 재현 가능한 릴리스 패키지"}
   ],
   "upgrade_backlog": [
-    {
-      "id": "UPG-001",
-      "priority": "P0",
-      "target": "evidence",
-      "objective": "각 핵심 기능의 면접 설명 포인트와 실행 증거를 하나의 자동 리포트로 유지",
-      "exit_criteria": "interview-readiness.md에서 모든 도메인이 파일과 설명 포인트를 보유"
-    },
-    {
-      "id": "UPG-002",
-      "priority": "P0",
-      "target": "release",
-      "objective": "면접 직전 검증 결과와 정적 포트폴리오를 릴리스 후보 Artifact로 패키징",
-      "exit_criteria": "release-readiness workflow가 전체 검증 후 bundle Artifact를 생성"
-    },
-    {
-      "id": "UPG-003",
-      "priority": "P1",
-      "target": "scenario",
-      "objective": "스토리지·네트워크·배치·변경 외 추가 운영 장애 시나리오 확장",
-      "exit_criteria": "새 시나리오는 expected 결과와 단위/회귀 테스트를 동반"
-    },
-    {
-      "id": "UPG-004",
-      "priority": "P1",
-      "target": "observability",
-      "objective": "운영 자동화 결과를 공통 상태 모델과 증거 포맷으로 정규화",
-      "exit_criteria": "핵심 Python 도구가 상태/근거/종료코드 설명을 문서와 테스트로 보유"
-    },
-    {
-      "id": "UPG-005",
-      "priority": "P1",
-      "target": "interview",
-      "objective": "기능별 예상 기술면접 질문과 답변 근거 파일 연결",
-      "exit_criteria": "INTERVIEW_GUIDE에서 주요 운영 도메인별 질문·근거·주의사항 확인 가능"
-    },
-    {
-      "id": "UPG-006",
-      "priority": "P2",
-      "target": "pages",
-      "objective": "GitHub Pages 활성화 시 검증된 정적 사이트를 공식 배포 Workflow로 전환",
-      "exit_criteria": "저장소 Pages 설정 활성화 후 deploy-pages 성공"
-    }
+    {"id": "UPG-001", "priority": "P0", "target": "evidence", "objective": "각 핵심 기능의 면접 설명 포인트와 실행 증거를 하나의 자동 리포트로 유지", "exit_criteria": "interview-readiness.md에서 모든 도메인이 파일과 설명 포인트를 보유"},
+    {"id": "UPG-002", "priority": "P0", "target": "release", "objective": "면접 직전 검증 결과와 정적 포트폴리오를 릴리스 후보 Artifact로 패키징", "exit_criteria": "release-readiness workflow가 전체 검증 후 bundle Artifact를 생성"},
+    {"id": "UPG-003", "priority": "P1", "target": "scenario", "objective": "스토리지·네트워크·배치·변경 외 추가 운영 장애 시나리오 확장", "exit_criteria": "새 시나리오는 expected 결과와 단위/회귀 테스트를 동반"},
+    {"id": "UPG-004", "priority": "P1", "target": "observability", "objective": "운영 자동화 결과를 공통 상태 모델과 증거 포맷으로 정규화", "exit_criteria": "핵심 Python 도구가 상태/근거/종료코드 설명을 문서와 테스트로 보유"},
+    {"id": "UPG-005", "priority": "P1", "target": "interview", "objective": "기능별 예상 기술면접 질문과 답변 근거 파일 연결", "exit_criteria": "INTERVIEW_GUIDE에서 주요 운영 도메인별 질문·근거·주의사항 확인 가능"},
+    {"id": "UPG-006", "priority": "P2", "target": "pages", "objective": "GitHub Pages 활성화 시 검증된 정적 사이트를 공식 배포 Workflow로 전환", "exit_criteria": "저장소 Pages 설정 활성화 후 deploy-pages 성공"}
   ],
   "interview_question_bank": [
     "Health Check에서 WARN과 CRITICAL 임계치를 어떻게 정하고 오탐을 줄였는가?",
