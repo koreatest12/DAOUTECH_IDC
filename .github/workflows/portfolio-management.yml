@@ -1,0 +1,77 @@
+name: 면접 대비 포트폴리오 Lifecycle 관리
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # 매주 월요일 09:45 KST (00:45 UTC)
+    - cron: '45 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    name: 전체 기능 인벤토리·면접 준비·업그레이드 관리
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v6
+
+      - name: Python 준비
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Python compile
+        run: python3 -m compileall -q .
+
+      - name: Lifecycle 인벤토리 및 면접 준비도 판정
+        run: |
+          python3 tools/portfolio_manager.py \
+            --manifest portfolio-manifest.json \
+            --catalog feature-catalog.json \
+            --readiness-report interview-readiness.md \
+            --json-report interview-readiness.json \
+            --inventory-report feature-inventory.md \
+            --upgrade-report upgrade-plan.md \
+            --fail-on-blocked
+
+      - name: 단위 테스트
+        run: python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Actions 요약
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# 면접 대비 포트폴리오 Lifecycle"
+            echo ""
+            if [ -s interview-readiness.md ]; then
+              cat interview-readiness.md
+            else
+              echo "Lifecycle 리포트가 생성되지 않았습니다."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 관리 리포트 보관
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: interview-lifecycle-${{ github.run_number }}
+          path: |
+            interview-readiness.md
+            interview-readiness.json
+            feature-inventory.md
+            upgrade-plan.md
+            feature-catalog.json
+            portfolio-manifest.json
+            docs/INTERVIEW_GUIDE.md
+            docs/FEATURE_LIFECYCLE.md
+          retention-days: 30
+          if-no-files-found: error
