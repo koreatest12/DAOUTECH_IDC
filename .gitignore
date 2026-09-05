@@ -44,6 +44,12 @@ pages-review.json
 pages-functional.md
 pages-functional.json
 
+# Interview lifecycle / feature management reports
+interview-readiness.md
+interview-readiness.json
+feature-inventory.md
+upgrade-plan.md
+
 # Generated portfolio examples/reports
 incident-report.md
 incident-sample.json
@@ -53,8 +59,9 @@ alert-correlation.json
 capacity-sample.json
 capacity-report.md
 
-# Site build output
+# Site / release build output
 _site/
+release-bundle/
 
 # Distribution archives belong in GitHub Releases / Actions Artifacts
 *.zip
