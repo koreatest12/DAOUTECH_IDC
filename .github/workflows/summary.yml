@@ -1,7 +1,6 @@
 name: 저장소 제출 검수 및 결정적 요약
 
 # 저장소의 사실 판정과 제출 준비도는 외부 AI 없이 Python 검사기가 결정적으로 수행합니다.
-# GitHub Models는 2026-07-30 종료되었으므로 actions/ai-inference를 사용하지 않습니다.
 # Dependabot PR에서도 동일한 검사가 실행되며, 매주 정기 검수도 수행합니다.
 
 on:
@@ -80,6 +79,19 @@ jobs:
             --report scenario-report.md \
             --json-report scenario-report.json
 
+      - name: 면접 대비 전체 기능 Lifecycle 검증
+        id: lifecycle
+        continue-on-error: true
+        run: |
+          python3 tools/portfolio_manager.py \
+            --manifest portfolio-manifest.json \
+            --catalog feature-catalog.json \
+            --readiness-report interview-readiness.md \
+            --json-report interview-readiness.json \
+            --inventory-report feature-inventory.md \
+            --upgrade-report upgrade-plan.md \
+            --fail-on-blocked
+
       - name: 리포트 존재 보장
         if: always()
         shell: bash
@@ -107,6 +119,18 @@ jobs:
           fi
           if [ ! -s scenario-report.json ]; then
             printf '%s\n' '{"status":"FAIL","count":0,"results":[],"message":"scenario JSON 리포트 미생성"}' > scenario-report.json
+          fi
+          if [ ! -s interview-readiness.md ]; then
+            { echo "# 면접 대비 Lifecycle 리포트"; echo ""; echo "> lifecycle 리포트 생성 실패"; } > interview-readiness.md
+          fi
+          if [ ! -s interview-readiness.json ]; then
+            printf '%s\n' '{"status":"BLOCKED","score":0,"blockers":["lifecycle JSON 리포트 미생성"]}' > interview-readiness.json
+          fi
+          if [ ! -s feature-inventory.md ]; then
+            echo '# 전체 기능 인벤토리' > feature-inventory.md
+          fi
+          if [ ! -s upgrade-plan.md ]; then
+            echo '# 업그레이드·출시 관리 계획' > upgrade-plan.md
           fi
 
       - name: 로컬 결정적 요약 생성
@@ -151,18 +175,23 @@ jobs:
         shell: bash
         run: |
           {
-            echo "# DAOUTECH_IDC 제출 검수"
+            echo "# DAOUTECH_IDC 제출·면접 준비 검수"
             echo ""
             echo "- 실행 이벤트: **${{ github.event_name }}**"
             echo "- 저장소 품질 검수: **${{ steps.review.outcome }}**"
             echo "- 전체 파일 실행·제출 분석: **${{ steps.execution.outcome }}**"
             echo "- functional 실제 수행: **${{ steps.functional.outcome }}**"
             echo "- 운영 시나리오: **${{ steps.scenarios.outcome }}**"
+            echo "- 면접 Lifecycle: **${{ steps.lifecycle.outcome }}**"
             echo "- 결정적 요약: **${{ steps.summary.outcome }}**"
             echo "- 통합 HTML 리포트: **${{ steps.htmlreport.outcome }}**"
             echo "- 외부 AI 의존성: **없음**"
             echo "- Node: **$(node --version 2>/dev/null || echo unavailable)**"
             echo "- Python: **$(python3 --version 2>/dev/null || echo unavailable)**"
+            echo ""
+            cat interview-readiness.md
+            echo ""
+            echo "---"
             echo ""
             cat deterministic-summary.md
             echo ""
@@ -188,11 +217,18 @@ jobs:
             functional-logs/
             scenario-report.md
             scenario-report.json
+            interview-readiness.md
+            interview-readiness.json
+            feature-inventory.md
+            upgrade-plan.md
             portfolio-report.html
             portfolio-manifest.json
+            feature-catalog.json
+            docs/INTERVIEW_GUIDE.md
+            docs/FEATURE_LIFECYCLE.md
             SUBMISSION.md
             .github/dependabot.yml
-          retention-days: 14
+          retention-days: 30
           if-no-files-found: error
 
       - name: 최종 제출 판정
@@ -202,9 +238,10 @@ jobs:
            steps.execution.outcome == 'failure' ||
            steps.functional.outcome == 'failure' ||
            steps.scenarios.outcome == 'failure' ||
+           steps.lifecycle.outcome == 'failure' ||
            steps.summary.outcome == 'failure' ||
            steps.htmlreport.outcome == 'failure')
         shell: bash
         run: |
-          echo "::error::제출 검증 단계 중 하나 이상이 실패했습니다. Artifact와 Step Summary를 확인하십시오."
+          echo "::error::제출·면접 준비 검증 단계 중 하나 이상이 실패했습니다. Artifact와 Step Summary를 확인하십시오."
           exit 1
