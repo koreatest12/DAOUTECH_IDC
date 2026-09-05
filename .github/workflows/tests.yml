@@ -1,4 +1,4 @@
-name: 포트폴리오 단위 테스트
+name: 포트폴리오 교차환경 단위 테스트
 
 on:
   push:
@@ -12,36 +12,55 @@ permissions:
 
 jobs:
   unit-tests:
-    name: Python 표준 라이브러리 단위 테스트
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    name: ${{ matrix.os }} · Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+        python: [ '3.12', '3.13' ]
+
     steps:
       - name: 소스 체크아웃
         uses: actions/checkout@v6
 
-      - name: Python 3.12 준비
+      - name: Python 준비
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
+
+      - name: 런타임 확인
+        run: python --version
 
       - name: Python 전체 compile 검사
-        run: |
-          set -euo pipefail
-          python3 -m compileall -q .
+        run: python -m compileall -q .
 
       - name: unittest 실행
+        shell: bash
         run: |
-          set -euo pipefail
-          python3 -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee unit-test-results.txt
+          set -o pipefail
+          python -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee unit-test-results.txt
+
+      - name: 시나리오 회귀 검증
+        shell: bash
+        run: |
+          set -o pipefail
+          python scenario_runner.py scenarios --report scenario-test.md --json-report scenario-test.json 2>&1 | tee scenario-test.txt
 
       - name: 결과 요약
         if: always()
+        shell: bash
         run: |
           {
-            echo '# 포트폴리오 단위 테스트'
+            echo '# 포트폴리오 교차환경 테스트'
+            echo ''
+            echo '- OS: **${{ matrix.os }}**'
+            echo '- Python: **${{ matrix.python }}**'
             echo ''
             echo '```text'
-            tail -n 40 unit-test-results.txt 2>/dev/null || true
+            tail -n 35 unit-test-results.txt 2>/dev/null || true
+            tail -n 10 scenario-test.txt 2>/dev/null || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -49,7 +68,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: unit-test-results-${{ github.run_number }}
-          path: unit-test-results.txt
+          name: tests-${{ matrix.os }}-py${{ matrix.python }}-${{ github.run_number }}
+          path: |
+            unit-test-results.txt
+            scenario-test.txt
+            scenario-test.md
+            scenario-test.json
           retention-days: 14
           if-no-files-found: warn
