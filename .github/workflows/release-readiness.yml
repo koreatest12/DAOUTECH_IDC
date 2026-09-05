@@ -100,7 +100,7 @@ jobs:
           printf '%s\n' "commit=${GITHUB_SHA}" "event=${GITHUB_EVENT_NAME}" "ref=${GITHUB_REF}" > release-bundle/RELEASE-METADATA.txt
 
       - name: 릴리스 Bundle 보관
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: portfolio-release-${{ github.run_number }}-${{ inputs.channel || 'tagged' }}
           path: release-bundle/

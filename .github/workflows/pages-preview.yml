@@ -47,7 +47,7 @@ jobs:
           printf '%s\n' 'This site is a static portfolio preview. Operational Python tools remain in the GitHub repository.' > _site/DEPLOYMENT-NOTE.txt
 
       - name: Pages 호환 Artifact 보관
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pages-ready-site-${{ github.run_number }}
           path: _site/
