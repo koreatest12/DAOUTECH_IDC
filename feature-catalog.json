@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "mode": "interview-preparation",
+  "description": "서류 제출 이후 기술면접까지 저장소 전체 기능의 설명 가능성, 검증 증거, 업그레이드 우선순위와 릴리스 준비도를 관리합니다.",
+  "domains": [
+    {
+      "id": "governance",
+      "name": "문서·정책·의존성 관리",
+      "categories": ["documentation", "legal", "runtime", "manifest", "dependency-automation", "lifecycle-config"],
+      "interview_focus": "저장소 목적, 경험/시뮬레이션 경계, 의존성 및 변경 정책을 설명할 수 있어야 합니다."
+    },
+    {
+      "id": "quality-security",
+      "name": "품질·CI·보안·릴리스",
+      "categories": ["ci", "ci-execution", "ci-test", "security-ci", "deployment-ci", "release-ci", "quality", "summary", "reporting", "test", "lifecycle-management"],
+      "interview_focus": "코드가 실제로 검증되는 경로, 실패 게이트, 교차환경, CodeQL, 릴리스 증거를 설명할 수 있어야 합니다."
+    },
+    {
+      "id": "operations-automation",
+      "name": "IDC 운영 자동화",
+      "categories": ["python-cli", "config", "input"],
+      "interview_focus": "Health Check, 로그/알람, Capacity/SLA, 백업, 인증서, 서비스 감시의 입력·판단·종료코드·안전장치를 설명합니다."
+    },
+    {
+      "id": "scenario-regression",
+      "name": "운영 시나리오·회귀검증",
+      "categories": ["scenario", "scenario-data"],
+      "interview_focus": "Root Cause 후보, 후행 영향, SLA 위험, 기대값 회귀검증의 계산 근거를 설명합니다."
+    },
+    {
+      "id": "interactive-simulators",
+      "name": "브라우저 운영 시뮬레이터",
+      "categories": ["portal", "simulator"],
+      "interview_focus": "NOC·배치·장애·변경·백업·서버·네트워크·보안 시뮬레이터의 목적과 실제 경험 범위를 구분해 설명합니다."
+    }
+  ],
+  "readiness_requirements": {
+    "documentation": [
+      "README.md",
+      "SUBMISSION.md",
+      "docs/ARCHITECTURE.md",
+      "docs/RUNBOOK.md",
+      "docs/INTERVIEW_GUIDE.md",
+      "docs/FEATURE_LIFECYCLE.md"
+    ],
+    "automation": [
+      "tools/review_repo.py",
+      "tools/run_analyze.py",
+      "tools/execute_repo.py",
+      "tools/portfolio_manager.py",
+      ".github/workflows/summary.yml",
+      ".github/workflows/tests.yml",
+      ".github/workflows/codeql.yml",
+      ".github/workflows/portfolio-management.yml"
+    ],
+    "release": [
+      ".github/workflows/release-readiness.yml",
+      ".github/workflows/pages-preview.yml",
+      "portfolio-manifest.json",
+      "feature-catalog.json"
+    ]
+  },
+  "release_channels": [
+    {"id": "candidate", "purpose": "면접 전 기능 검증용 Actions Artifact"},
+    {"id": "portfolio-site", "purpose": "정적 HTML 포트폴리오 Pages-ready 패키지"},
+    {"id": "tagged", "purpose": "v* 태그 기준 재현 가능한 릴리스 패키지"}
+  ],
+  "upgrade_backlog": [
+    {
+      "id": "UPG-001",
+      "priority": "P0",
+      "target": "evidence",
+      "objective": "각 핵심 기능의 면접 설명 포인트와 실행 증거를 하나의 자동 리포트로 유지",
+      "exit_criteria": "interview-readiness.md에서 모든 도메인이 파일과 설명 포인트를 보유"
+    },
+    {
+      "id": "UPG-002",
+      "priority": "P0",
+      "target": "release",
+      "objective": "면접 직전 검증 결과와 정적 포트폴리오를 릴리스 후보 Artifact로 패키징",
+      "exit_criteria": "release-readiness workflow가 전체 검증 후 bundle Artifact를 생성"
+    },
+    {
+      "id": "UPG-003",
+      "priority": "P1",
+      "target": "scenario",
+      "objective": "스토리지·네트워크·배치·변경 외 추가 운영 장애 시나리오 확장",
+      "exit_criteria": "새 시나리오는 expected 결과와 단위/회귀 테스트를 동반"
+    },
+    {
+      "id": "UPG-004",
+      "priority": "P1",
+      "target": "observability",
+      "objective": "운영 자동화 결과를 공통 상태 모델과 증거 포맷으로 정규화",
+      "exit_criteria": "핵심 Python 도구가 상태/근거/종료코드 설명을 문서와 테스트로 보유"
+    },
+    {
+      "id": "UPG-005",
+      "priority": "P1",
+      "target": "interview",
+      "objective": "기능별 예상 기술면접 질문과 답변 근거 파일 연결",
+      "exit_criteria": "INTERVIEW_GUIDE에서 주요 운영 도메인별 질문·근거·주의사항 확인 가능"
+    },
+    {
+      "id": "UPG-006",
+      "priority": "P2",
+      "target": "pages",
+      "objective": "GitHub Pages 활성화 시 검증된 정적 사이트를 공식 배포 Workflow로 전환",
+      "exit_criteria": "저장소 Pages 설정 활성화 후 deploy-pages 성공"
+    }
+  ],
+  "interview_question_bank": [
+    "Health Check에서 WARN과 CRITICAL 임계치를 어떻게 정하고 오탐을 줄였는가?",
+    "Control-M/배치 운영 경험을 Critical Path와 SLA 관점으로 어떻게 모델링했는가?",
+    "장애 발생 시 Root Cause 후보와 영향 범위를 어떤 순서로 좁히는가?",
+    "서비스 자동 재기동을 무제한으로 하지 않는 이유와 안전장치는 무엇인가?",
+    "백업 SUCCESS와 실제 복구 가능성을 왜 별도로 검증해야 하는가?",
+    "Capacity Forecast의 추세 계산을 운영 의사결정에 어떻게 연결하는가?",
+    "변경 후 Post Check 실패 시 Rollback 기준은 무엇인가?",
+    "DNS/네트워크 장애를 애플리케이션 장애와 어떻게 분리 진단하는가?",
+    "Windows와 Linux 교차검증이 필요한 이유는 무엇인가?",
+    "CodeQL과 functional test가 각각 잡는 문제의 차이는 무엇인가?",
+    "실제 운영 경험과 포트폴리오 시뮬레이션 범위를 어떻게 구분했는가?",
+    "Dependabot major 업데이트를 자동 병합하지 않는 이유는 무엇인가?"
+  ]
+}
