@@ -1,97 +1,137 @@
 # 채용 제출 가이드
 
-이 문서는 `DAOUTECH_IDC` 저장소를 채용담당자 또는 기술면접관에게 제출하기 전에 확인할 항목과, 처음 저장소를 보는 사람이 빠르게 검토할 순서를 정리합니다.
+이 문서는 `DAOUTECH_IDC` 저장소를 채용담당자 또는 기술면접관에게 제출하기 전에 확인할 기준입니다.
 
-## 1. 제출 전에 실행할 명령
+## 1. 제출 전 전체 검증
 
 ```bash
 python3 tools/review_repo.py --report review.md --json-report review.json
 python3 tools/run_analyze.py --manifest portfolio-manifest.json --report execution-report.md --json-report execution-report.json
 python3 tools/execute_repo.py --target all --mode functional --report functional-run.md --json-report functional-run.json --log-dir functional-logs
+python3 scenario_runner.py scenarios --report scenario-report.md --json-report scenario-report.json
 python3 tools/summarize_reports.py --review-json review.json --execution-json execution-report.json --functional-json functional-run.json --report deterministic-summary.md --json-report deterministic-summary.json
+python3 tools/portfolio_report.py --review review.json --execution execution-report.json --functional functional-run.json --summary deterministic-summary.json --scenarios scenario-report.json --output portfolio-report.html
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-`review`, `run_analyze`, `execute_repo`, `summarize_reports`, `unittest`가 모두 정상이어야 합니다.
-
-- `review.md`: 구조·문법·링크·호환성의 결정적 검사 결과
-- `execution-report.md`: 모든 Git 추적 파일의 안전 실행·분석 결과와 제출 준비 상태
-- `functional-run.md`: 실행 가능한 도구와 HTML의 functional 수행 결과
-- `deterministic-summary.md`: 위 JSON 결과를 외부 AI 없이 로컬 Python으로 집계한 최종 요약
-- JSON 리포트: 자동 처리와 추가 분석을 위한 구조화 결과
-
-생성 리포트는 소스 파일이 아니므로 저장소에 커밋하지 않고 GitHub Actions Artifact로 보관합니다.
+모든 명령이 성공해야 합니다.
 
 ## 2. 제출 준비 완료 기준
 
-다음 조건을 모두 만족하면 `READY`로 판단합니다.
+```text
+Repository Review       ERROR 0 / WARN 0
+Execution Analysis      READY
+Functional Execution    PASS
+Scenario Regression     PASS
+Deterministic Summary   READY
+Unit Tests              PASS
+Cross-platform Tests    PASS
+CodeQL                  PASS
+```
 
-- 제출 필수 파일이 모두 Git에 추적되어 있음
-- `tools/review_repo.py` 결과 ERROR 0건, WARN 0건
-- `tools/run_analyze.py` 결과 실행/분석 오류 0건
-- `tools/execute_repo.py` functional 결과 `PASS`
-- `tools/summarize_reports.py` 최종 판정 `READY`
-- Python `unittest` 성공
-- Python CLI 엔트리포인트 로딩 성공
-- HTML 인라인 JavaScript의 Node 24 문법 검사 성공
-- JSON 파싱 성공
+추가 기준:
+
+- `portfolio-manifest.json`의 제출 필수 파일이 모두 Git 추적 상태
 - README 로컬 링크 정상
-- 저장소에 중복 배포 ZIP 파일 없음
-- GitHub Actions 통합 검수 성공
+- Python/JSON/HTML JavaScript 문법 정상
+- 저장소에 소스와 중복되는 ZIP 없음
+- 실제 운영 시스템을 변경하는 테스트 없음
 
-## 3. 채용담당자가 먼저 보면 좋은 순서
+## 3. 채용담당자 권장 확인 순서
 
-1. [index.html](index.html) — 전체 포트폴리오 통합 시작 화면
-2. [README.md](README.md) — 프로젝트 목적과 전체 구성
-3. [batch-operations-lab.html](batch-operations-lab.html) — 배치 선후행·장애 전파·SLA 운영 관점
-4. [incident-lab.html](incident-lab.html) — 장애 대응 판단 흐름
-5. [healthcheck.py](healthcheck.py) — 운영 자동화 코드 구조
-6. [change-management-lab.html](change-management-lab.html) — 변경·사후검증·Rollback 판단
-7. [portfolio-manifest.json](portfolio-manifest.json) — 전체 파일 역할과 제출 기준
+1. [README.md](README.md) — 프로젝트 전체 목적과 검증 체계
+2. [index.html](index.html) — HTML 포트폴리오 통합 시작 화면
+3. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — 운영 기능/검증 계층 관계
+4. [batch-operations-lab.html](batch-operations-lab.html) — 배치 선후행·Critical Path·SLA
+5. [incident-lab.html](incident-lab.html) — 장애 대응 판단
+6. [change-management-lab.html](change-management-lab.html) — 변경/사후점검/Rollback
+7. [scenario_runner.py](scenario_runner.py) + [scenarios/](scenarios/) — Root Cause·영향·SLA 회귀검증
+8. [healthcheck.py](healthcheck.py) — 운영 자동화 코드
+9. [portfolio-manifest.json](portfolio-manifest.json) — 파일별 역할과 제출 기준
 
-## 4. 실행 안전 정책
+## 4. 운영 시나리오 검증 의미
 
-CI는 실제 운영 시스템에 영향을 줄 수 있는 동작을 자동으로 수행하지 않습니다.
+`scenario_runner.py`는 시나리오 JSON에 기록된 이벤트 의존관계를 재귀적으로 추적합니다.
 
-- `svc_watchdog.py`: functional 검증에서 항상 `--dry-run`
-- 백업 검증: 임시 샌드박스 파일만 생성·검증
-- 디스크/Capacity 이력: 임시 샌드박스 파일에만 기록
-- 장애/알람 보고: 임시 입력과 출력만 사용
-- 인증서 검사: 읽기 전용 TLS 연결만 수행
-- 실제 방화벽 정책 변경, 운영 서비스 재기동, 운영 백업 데이터 변경: 수행하지 않음
+- Root Cause 후보
+- 후행 영향 범위
+- 장애 심각도
+- SLA 위험도
+- 기대 결과와 실제 계산 결과 차이
 
-## 5. 외부 AI 비의존 정책
+을 계산합니다. 화면이 정상적으로 보이는지만 검사하는 것이 아니라 **운영 판단 규칙이 변경되지 않았는지** 회귀검증하는 목적입니다.
 
-GitHub Models는 2026년 7월 30일 종료되었으므로 제출 CI는 `actions/ai-inference`와 GitHub Models inference API를 사용하지 않습니다.
+## 5. 교차환경 검증
 
-최종 요약은 `tools/summarize_reports.py`가 다음 파일만 읽어 결정적으로 생성합니다.
+`.github/workflows/tests.yml`은 다음 조합을 검증합니다.
 
-- `review.json`
-- `execution-report.json`
-- `functional-run.json`
+- Ubuntu + Python 3.12
+- Ubuntu + Python 3.13
+- Windows + Python 3.12
+- Windows + Python 3.13
 
-따라서 외부 AI 서비스 장애, 모델 retirement, API brownout이 제출 CI의 성공 여부에 영향을 주지 않습니다.
+각 조합에서 Python 전체 compile, unittest, 시나리오 회귀검증을 수행합니다.
 
-## 6. 제출에 포함되는 핵심 파일
+## 6. 보안검사
 
-- 안내: `README.md`, `SUBMISSION.md`, `LICENSE`, `index.html`
-- 실행 기준: `portfolio-manifest.json`, `requirements.txt`
-- 자동 검수: `tools/review_repo.py`, `tools/run_analyze.py`, `tools/execute_repo.py`, `tools/summarize_reports.py`
-- 테스트: `tests/test_portfolio.py`
-- CI: `.github/workflows/summary.yml`, `.github/workflows/run-files.yml`, `.github/workflows/tests.yml`
-- 의존성 관리: `.github/dependabot.yml`
-- 운영 Python 도구: `healthcheck.py`, `log_analyzer.py`, `alert_correlator.py`, `disk_forecast.py`, `capacity_planner.py`, `sla_calculator.py`, `svc_watchdog.py`, `backup_verify.py`, `cert_expiry.py`, `incident_report.py`
-- 입력/설정: `check.json`, `domains.txt`
-- HTML 시뮬레이터: `noc-dashboard.html`, `batch-operations-lab.html`, `incident-lab.html`, `change-management-lab.html`, `linux-security-lab.html`, `backup-simulator.html`, `server-console.html`, `network-path.html`
+`.github/workflows/codeql.yml`은 CodeQL로 다음 언어를 검사합니다.
 
-## 7. 제출하지 않는 생성물
+- Python
+- JavaScript/TypeScript
 
-다음 파일은 자동 생성물이며 GitHub Actions Artifact로 확인합니다.
+보안검사 결과는 GitHub Security/Code Scanning 결과에서 확인합니다.
 
-- `review.md`, `review.json`
-- `execution-report.md`, `execution-report.json`
-- `functional-run.md`, `functional-run.json`
-- `deterministic-summary.md`, `deterministic-summary.json`
+## 7. Pages/정적 사이트
+
+현재 저장소에는 `index.html`과 `.github/workflows/pages-preview.yml`이 있습니다. Pages 설정이 비활성인 동안에는 정적 사이트를 실제 배포하지 않고 `_site`를 검증해 Actions Artifact로 보관합니다.
+
+Pages publishing source가 GitHub Actions로 활성화되면 배포 Workflow로 전환할 수 있습니다.
+
+## 8. 실행 안전 정책
+
+CI에서 금지하는 동작:
+
+- 운영 서비스 실제 재기동
+- 방화벽/네트워크 정책 실제 변경
+- 운영 백업 데이터 변경
+- 외부 서버 설정 변경
+
+대신:
+
+- 서비스 워치독은 `--dry-run`
+- 백업/로그/이력/장애 입력은 임시 샌드박스
+- 인증서는 읽기 전용 TLS 확인
+- HTML은 문법검사 및 가능한 Runner에서 headless 로딩
+
+으로 검증합니다.
+
+## 9. 외부 AI 비의존
+
+저장소의 품질 판정과 제출 상태는 외부 AI를 사용하지 않습니다.
+
+```text
+review.json
+execution-report.json
+functional-run.json
+        ↓
+tools/summarize_reports.py
+        ↓
+deterministic-summary.md/json
+```
+
+따라서 외부 모델/API 상태가 제출 CI 결과에 영향을 주지 않습니다.
+
+## 10. 생성물
+
+Git에 커밋하지 않고 Actions Artifact에서 확인하는 생성물:
+
+- `review.md/json`
+- `execution-report.md/json`
+- `functional-run.md/json`
+- `scenario-report.md/json`
+- `deterministic-summary.md/json`
+- `portfolio-report.html`
+- `unit-test-results.txt`
 - 실행 로그 디렉터리
 
-ZIP 배포본도 Git 저장소에는 두지 않습니다. 필요한 경우 GitHub Release 또는 Actions Artifact로 생성해 소스와 배포물을 분리합니다.
+ZIP 배포본도 소스 저장소에는 커밋하지 않습니다.
