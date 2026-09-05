@@ -1,0 +1,13 @@
+{
+  "id": "SCN-004",
+  "title": "DNS 해석 실패로 인한 애플리케이션 연결 장애",
+  "elapsed_minutes": 24,
+  "sla_minutes": 45,
+  "events": [
+    {"id":"dns-fail","minute":0,"component":"DNS Resolver","severity":"SEV2","state":"FAILED","message":"name resolution timeout"},
+    {"id":"app-connect","minute":2,"component":"APP API","severity":"CRIT","state":"FAILED","depends_on":"dns-fail","message":"backend hostname unresolved"},
+    {"id":"batch-api","minute":5,"component":"Batch API Call","severity":"CRIT","state":"BLOCKED","depends_on":"app-connect","message":"external call blocked"},
+    {"id":"noc-service","minute":7,"component":"NOC Service Monitor","severity":"WARN","state":"DEGRADED","depends_on":"app-connect","message":"service check failed"}
+  ],
+  "expected": {"root_cause":"dns-fail","severity":"SEV2","sla_risk":"MEDIUM","min_affected":4}
+}

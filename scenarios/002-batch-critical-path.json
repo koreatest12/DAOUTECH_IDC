@@ -1,0 +1,13 @@
+{
+  "id": "SCN-002",
+  "title": "선행 Job 실패로 인한 마감 Critical Path 지연",
+  "elapsed_minutes": 52,
+  "sla_minutes": 60,
+  "events": [
+    {"id":"job-a-fail","minute":0,"component":"JOB-A","severity":"SEV2","state":"FAILED","message":"input validation failed"},
+    {"id":"job-b-block","minute":1,"component":"JOB-B","severity":"CRIT","state":"BLOCKED","depends_on":"job-a-fail","message":"predecessor failed"},
+    {"id":"job-c-block","minute":2,"component":"JOB-C","severity":"CRIT","state":"BLOCKED","depends_on":"job-b-block","message":"critical path blocked"},
+    {"id":"closing-risk","minute":8,"component":"EOD Closing","severity":"WARN","state":"DEGRADED","depends_on":"job-c-block","message":"closing margin reduced"}
+  ],
+  "expected": {"root_cause":"job-a-fail","severity":"SEV2","sla_risk":"HIGH","min_affected":4}
+}

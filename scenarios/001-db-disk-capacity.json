@@ -1,0 +1,14 @@
+{
+  "id": "SCN-001",
+  "title": "DB 디스크 포화로 인한 배치·온라인 영향",
+  "elapsed_minutes": 42,
+  "sla_minutes": 60,
+  "events": [
+    {"id":"db-disk","minute":0,"component":"DB01 /u01","severity":"SEV2","state":"FAILED","message":"filesystem usage 97%"},
+    {"id":"db-latency","minute":4,"component":"DB01 latency","severity":"CRIT","state":"DEGRADED","depends_on":"db-disk","message":"write latency increase"},
+    {"id":"app-slow","minute":7,"component":"APP01","severity":"CRIT","state":"DEGRADED","depends_on":"db-latency","message":"response time increase"},
+    {"id":"batch-delay","minute":9,"component":"BATCH-A","severity":"CRIT","state":"BLOCKED","depends_on":"db-latency","message":"job delayed"},
+    {"id":"noc-alert","minute":10,"component":"NOC","severity":"WARN","state":"DEGRADED","depends_on":"app-slow","message":"service alarm"}
+  ],
+  "expected": {"root_cause":"db-disk","severity":"SEV2","sla_risk":"MEDIUM","min_affected":5}
+}

@@ -1,0 +1,13 @@
+{
+  "id": "SCN-005",
+  "title": "변경 작업 후 서비스 이상 및 Rollback 판단",
+  "elapsed_minutes": 31,
+  "sla_minutes": 30,
+  "events": [
+    {"id":"config-change","minute":0,"component":"APP Config Change","severity":"SEV2","state":"FAILED","message":"post-check failed after configuration change"},
+    {"id":"service-fail","minute":3,"component":"APP01 Service","severity":"CRIT","state":"FAILED","depends_on":"config-change","message":"health endpoint failed"},
+    {"id":"traffic-impact","minute":5,"component":"User Traffic","severity":"CRIT","state":"DEGRADED","depends_on":"service-fail","message":"error rate increased"},
+    {"id":"rollback","minute":9,"component":"Rollback Procedure","severity":"WARN","state":"BLOCKED","depends_on":"config-change","message":"rollback decision required"}
+  ],
+  "expected": {"root_cause":"config-change","severity":"SEV2","sla_risk":"BREACHED","min_affected":4}
+}
