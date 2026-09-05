@@ -1,0 +1,12 @@
+{
+  "id": "SCN-003",
+  "title": "백업 파일 해시 불일치 및 복구 가능성 저하",
+  "elapsed_minutes": 18,
+  "sla_minutes": 120,
+  "events": [
+    {"id":"backup-hash","minute":0,"component":"DB_FULL.bak","severity":"SEV2","state":"FAILED","message":"SHA-256 mismatch"},
+    {"id":"restore-risk","minute":3,"component":"Restore Readiness","severity":"CRIT","state":"DEGRADED","depends_on":"backup-hash","message":"restore point cannot be trusted"},
+    {"id":"handover","minute":5,"component":"Operations Handover","severity":"WARN","state":"DEGRADED","depends_on":"restore-risk","message":"next shift verification required"}
+  ],
+  "expected": {"root_cause":"backup-hash","severity":"SEV2","sla_risk":"LOW","min_affected":3}
+}
