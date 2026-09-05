@@ -1,0 +1,79 @@
+name: 기능 분석·업그레이드 요청
+description: 포트폴리오 기능의 분석, 개선, 검증, 면접 근거 또는 릴리스 변경을 관리합니다.
+title: "[Upgrade] "
+body:
+  - type: dropdown
+    id: domain
+    attributes:
+      label: 기능 영역
+      options:
+        - 문서·정책·의존성 관리
+        - 품질·CI·보안·릴리스
+        - IDC 운영 자동화
+        - 운영 시나리오·회귀검증
+        - 브라우저 운영 시뮬레이터
+    validations:
+      required: true
+
+  - type: dropdown
+    id: change_type
+    attributes:
+      label: 변경 유형
+      options:
+        - 분석/파악
+        - 기능 개선
+        - 신규 기능
+        - 테스트/검증 강화
+        - 보안 강화
+        - 면접 설명/증거 강화
+        - 릴리스/배포
+        - 문서화
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: 우선순위
+      options:
+        - P0 - 면접/검증/릴리스 차단
+        - P1 - 운영 판단/설명력 강화
+        - P2 - 편의/UI/장기 확장
+    validations:
+      required: true
+
+  - type: textarea
+    id: current
+    attributes:
+      label: 현재 기능과 문제
+      description: 현재 동작, 한계, 재현 조건을 적습니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: target
+    attributes:
+      label: 목표 상태
+      description: 변경 후 기대하는 동작과 완료 기준을 적습니다.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 검증/면접 근거
+      description: 관련 파일, 테스트, 시나리오, Actions 결과, 면접 설명 포인트를 적습니다.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 안전·경계 확인
+      options:
+        - label: 실제 고객/회사 데이터가 포함되지 않습니다.
+          required: true
+        - label: 실제 운영 시스템 변경이 필요한 경우 CI에서는 dry-run/샌드박스/읽기 전용으로 대체합니다.
+          required: true
+        - label: 실제 운영 경험과 시뮬레이션 구현을 구분해 설명합니다.
+          required: true
