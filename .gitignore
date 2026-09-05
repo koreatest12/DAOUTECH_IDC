@@ -14,6 +14,7 @@ Thumbs.db
 *.log
 execution-logs/
 functional-logs/
+pages-functional-logs/
 healthcheck_logs/
 watchdog_state.json
 disk_history.json
@@ -25,13 +26,23 @@ execution-report.md
 execution-report.json
 functional-run.md
 functional-run.json
+deterministic-summary.md
+deterministic-summary.json
+scenario-report.md
+scenario-report.json
+portfolio-report.html
 run-results.md
 run-results.json
 pre-run-review.md
 pre-run-review.json
 unit-test-results.txt
-deterministic-summary.md
-deterministic-summary.json
+scenario-test.md
+scenario-test.json
+scenario-test.txt
+pages-review.md
+pages-review.json
+pages-functional.md
+pages-functional.json
 
 # Generated portfolio examples/reports
 incident-report.md
@@ -41,6 +52,9 @@ alert-correlation.md
 alert-correlation.json
 capacity-sample.json
 capacity-report.md
+
+# Site build output
+_site/
 
 # Distribution archives belong in GitHub Releases / Actions Artifacts
 *.zip
