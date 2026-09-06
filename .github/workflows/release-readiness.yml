@@ -106,6 +106,7 @@ jobs:
           path: release-bundle/
           retention-days: 90
           if-no-files-found: error
+          include-hidden-files: true
 
       - name: 결과 요약
         shell: bash

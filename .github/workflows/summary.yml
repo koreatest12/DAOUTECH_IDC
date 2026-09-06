@@ -230,6 +230,7 @@ jobs:
             .github/dependabot.yml
           retention-days: 30
           if-no-files-found: error
+          include-hidden-files: true
 
       - name: 최종 제출 판정
         if: >-
