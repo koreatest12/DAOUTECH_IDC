@@ -61,7 +61,7 @@ jobs:
 
       - name: 관리 리포트 보관
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: interview-lifecycle-${{ github.run_number }}
           path: |

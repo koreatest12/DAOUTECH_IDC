@@ -202,7 +202,7 @@ jobs:
 
       - name: 제출 검수 및 실행 리포트 보관
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: submission-review-${{ github.run_number }}
           path: |
@@ -230,6 +230,7 @@ jobs:
             .github/dependabot.yml
           retention-days: 30
           if-no-files-found: error
+          include-hidden-files: true
 
       - name: 최종 제출 판정
         if: >-
