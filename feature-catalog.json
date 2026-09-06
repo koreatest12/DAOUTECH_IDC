@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "mode": "interview-preparation",
   "description": "서류 제출 이후 기술면접까지 저장소 전체 기능의 설명 가능성, 검증 증거, 업그레이드 우선순위와 릴리스 준비도를 관리합니다.",
   "domains": [
@@ -19,7 +19,7 @@
       "id": "operations-automation",
       "name": "IDC 운영 자동화",
       "categories": ["python-cli", "config", "input"],
-      "interview_focus": "Health Check, 로그/알람, Capacity/SLA, 백업, 인증서, 서비스 감시의 입력·판단·종료코드·안전장치를 설명합니다."
+      "interview_focus": "Health Check, 로그/알람, Capacity/SLA, 백업, 인증서, 서비스 감시와 Python 런타임 변경의 입력·판단·종료코드·안전장치를 설명합니다."
     },
     {
       "id": "scenario-regression",
@@ -40,6 +40,7 @@
       "SUBMISSION.md",
       "docs/ARCHITECTURE.md",
       "docs/RUNBOOK.md",
+      "docs/PYTHON_SERVER_UPGRADE.md",
       "docs/INTERVIEW_GUIDE.md",
       "docs/FEATURE_LIFECYCLE.md"
     ],
@@ -48,8 +49,10 @@
       "tools/run_analyze.py",
       "tools/execute_repo.py",
       "tools/portfolio_manager.py",
+      "python_server_upgrade.py",
       ".github/workflows/summary.yml",
       ".github/workflows/tests.yml",
+      ".github/workflows/python-upgrade-readiness.yml",
       ".github/workflows/codeql.yml",
       ".github/workflows/portfolio-management.yml"
     ],
@@ -68,6 +71,7 @@
   "upgrade_backlog": [
     {"id": "UPG-001", "priority": "P0", "target": "evidence", "objective": "각 핵심 기능의 면접 설명 포인트와 실행 증거를 하나의 자동 리포트로 유지", "exit_criteria": "interview-readiness.md에서 모든 도메인이 파일과 설명 포인트를 보유"},
     {"id": "UPG-002", "priority": "P0", "target": "release", "objective": "면접 직전 검증 결과와 정적 포트폴리오를 릴리스 후보 Artifact로 패키징", "exit_criteria": "release-readiness workflow가 전체 검증 후 bundle Artifact를 생성"},
+    {"id": "UPG-007", "priority": "P0", "target": "python-runtime", "objective": "Python 3.14 안정 계열 업그레이드를 side-by-side, 신규 venv, strict precheck, Post Check, Rollback 기준으로 관리", "exit_criteria": "Ubuntu/Windows × Python 3.12/3.13/3.14 교차검증과 Python upgrade strict precheck가 모두 PASS"},
     {"id": "UPG-003", "priority": "P1", "target": "scenario", "objective": "스토리지·네트워크·배치·변경 외 추가 운영 장애 시나리오 확장", "exit_criteria": "새 시나리오는 expected 결과와 단위/회귀 테스트를 동반"},
     {"id": "UPG-004", "priority": "P1", "target": "observability", "objective": "운영 자동화 결과를 공통 상태 모델과 증거 포맷으로 정규화", "exit_criteria": "핵심 Python 도구가 상태/근거/종료코드 설명을 문서와 테스트로 보유"},
     {"id": "UPG-005", "priority": "P1", "target": "interview", "objective": "기능별 예상 기술면접 질문과 답변 근거 파일 연결", "exit_criteria": "INTERVIEW_GUIDE에서 주요 운영 도메인별 질문·근거·주의사항 확인 가능"},
@@ -82,6 +86,9 @@
     "Capacity Forecast의 추세 계산을 운영 의사결정에 어떻게 연결하는가?",
     "변경 후 Post Check 실패 시 Rollback 기준은 무엇인가?",
     "DNS/네트워크 장애를 애플리케이션 장애와 어떻게 분리 진단하는가?",
+    "Python 서버 업그레이드에서 기존 런타임을 덮어쓰지 않고 side-by-side로 설치하는 이유는 무엇인가?",
+    "Python minor 업그레이드 전에 신규 venv, pip check, compile, unit/functional 검증을 왜 분리해서 수행하는가?",
+    "Python 런타임 전환 후 어떤 Post Check 조건에서 Rollback해야 하는가?",
     "Windows와 Linux 교차검증이 필요한 이유는 무엇인가?",
     "CodeQL과 functional test가 각각 잡는 문제의 차이는 무엇인가?",
     "실제 운영 경험과 포트폴리오 시뮬레이션 범위를 어떻게 구분했는가?",
