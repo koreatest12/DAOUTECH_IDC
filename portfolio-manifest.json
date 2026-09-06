@@ -1,9 +1,10 @@
 {
-  "schema_version": 5,
+  "schema_version": 6,
   "project": "DAOUTECH_IDC",
-  "description": "IDC operations automation, batch, incident, change, security, capacity, deterministic scenario and interview lifecycle portfolio",
+  "description": "IDC operations automation, batch, incident, change, security, capacity, Python runtime upgrade, deterministic scenario and interview lifecycle portfolio",
   "runtime": {
     "python": ">=3.12",
+    "validated_python": ["3.12", "3.13", "3.14"],
     "node": ">=24",
     "third_party_python_packages": false,
     "external_ai_required": false,
@@ -15,19 +16,20 @@
     ".github/workflows/codeql.yml", ".github/workflows/pages-preview.yml", ".github/workflows/portfolio-management.yml",
     ".github/workflows/release-readiness.yml", ".github/dependabot.yml", ".github/ISSUE_TEMPLATE/feature-upgrade.yml",
     "tools/review_repo.py", "tools/run_analyze.py", "tools/execute_repo.py", "tools/summarize_reports.py", "tools/portfolio_report.py", "tools/portfolio_manager.py",
-    "tests/test_portfolio.py", "tests/test_scenarios.py", "tests/test_portfolio_manager.py", "scenario_runner.py",
+    "tests/test_portfolio.py", "tests/test_scenarios.py", "tests/test_portfolio_manager.py", "tests/test_python_server_upgrade.py", "scenario_runner.py",
     "scenarios/001-db-disk-capacity.json", "scenarios/002-batch-critical-path.json", "scenarios/003-backup-integrity.json",
     "scenarios/004-dns-path-failure.json", "scenarios/005-change-rollback.json",
-    "docs/ARCHITECTURE.md", "docs/RUNBOOK.md", "docs/INTERVIEW_GUIDE.md", "docs/FEATURE_LIFECYCLE.md",
+    "docs/ARCHITECTURE.md", "docs/RUNBOOK.md", "docs/INTERVIEW_GUIDE.md", "docs/FEATURE_LIFECYCLE.md", "docs/PYTHON_SERVER_UPGRADE.md",
     "index.html", "noc-dashboard.html", "batch-operations-lab.html", "incident-lab.html", "change-management-lab.html",
     "linux-security-lab.html", "backup-simulator.html", "server-console.html", "network-path.html",
     "healthcheck.py", "check.json", "log_analyzer.py", "alert_correlator.py", "disk_forecast.py", "capacity_planner.py",
-    "sla_calculator.py", "svc_watchdog.py", "backup_verify.py", "cert_expiry.py", "incident_report.py", "domains.txt"
+    "sla_calculator.py", "svc_watchdog.py", "backup_verify.py", "cert_expiry.py", "incident_report.py", "python_server_upgrade.py", "domains.txt"
   ],
   "generated_reports": [
     "review.md", "review.json", "execution-report.md", "execution-report.json", "functional-run.md", "functional-run.json",
     "deterministic-summary.md", "deterministic-summary.json", "scenario-report.md", "scenario-report.json", "portfolio-report.html",
     "interview-readiness.md", "interview-readiness.json", "feature-inventory.md", "upgrade-plan.md",
+    "python-upgrade-report.md", "python-upgrade-report.json", "python-upgrade-test.md", "python-upgrade-test.json", "python-upgrade-test.txt",
     "run-results.md", "run-results.json", "unit-test-results.txt", "incident-report.md", "alert-correlation.md",
     "alert-correlation.json", "capacity-report.md"
   ],
@@ -38,6 +40,7 @@
     {"path":"docs/RUNBOOK.md","category":"documentation","purpose":"장애·배치·변경·백업 상황별 실행 순서와 에스컬레이션 기준"},
     {"path":"docs/INTERVIEW_GUIDE.md","category":"documentation","purpose":"기술면접 설명 구조, 기능별 근거, 경험/시뮬레이션 경계와 예상 질문"},
     {"path":"docs/FEATURE_LIFECYCLE.md","category":"documentation","purpose":"기능 등록·분석·검증·업그레이드·릴리스·면접 증거 관리 정책"},
+    {"path":"docs/PYTHON_SERVER_UPGRADE.md","category":"documentation","purpose":"Python 서버 런타임 사전점검, side-by-side 전환, Post Check와 Rollback Runbook"},
     {"path":"LICENSE","category":"legal","purpose":"저장소 라이선스 조건"},
     {"path":"requirements.txt","category":"runtime","purpose":"외부 Python 패키지가 없음을 명시"},
     {"path":".gitignore","category":"runtime","purpose":"생성 리포트, 런타임 데이터, 배포 산출물을 소스 추적에서 제외"},
@@ -45,7 +48,7 @@
     {"path":"feature-catalog.json","category":"lifecycle-config","purpose":"면접 도메인, 준비 요구사항, 업그레이드 백로그와 릴리스 채널 정의"},
     {"path":".github/workflows/summary.yml","category":"ci","purpose":"품질검수, 전체 분석, functional, 시나리오, lifecycle, 결정적 요약, HTML 리포트 생성"},
     {"path":".github/workflows/run-files.yml","category":"ci-execution","purpose":"Actions에서 개별 도구/시뮬레이터 선택 실행"},
-    {"path":".github/workflows/tests.yml","category":"ci-test","purpose":"Ubuntu/Windows 및 Python 3.12/3.13 교차환경 compile/unittest/시나리오 검증"},
+    {"path":".github/workflows/tests.yml","category":"ci-test","purpose":"Ubuntu/Windows 및 Python 3.12/3.13/3.14 교차환경 compile/unittest/시나리오/업그레이드 검증"},
     {"path":".github/workflows/codeql.yml","category":"security-ci","purpose":"Python 및 JavaScript CodeQL 정적 보안 분석"},
     {"path":".github/workflows/pages-preview.yml","category":"deployment-ci","purpose":"GitHub Pages 활성화 전 정적 사이트 품질검증과 배포 Artifact 생성"},
     {"path":".github/workflows/portfolio-management.yml","category":"lifecycle-management","purpose":"전체 기능 인벤토리, 면접 준비도, 업그레이드 우선순위를 정기/PR 자동 관리"},
@@ -62,6 +65,7 @@
     {"path":"tests/test_portfolio.py","category":"test","purpose":"운영 도구 핵심 함수와 경계조건 단위 테스트"},
     {"path":"tests/test_scenarios.py","category":"test","purpose":"시나리오 재귀 영향 분석·SLA 경계·통합 리포트 테스트"},
     {"path":"tests/test_portfolio_manager.py","category":"test","purpose":"Lifecycle READY/BLOCKED, 미등록 파일, 미분류 category, 백로그 정렬 테스트"},
+    {"path":"tests/test_python_server_upgrade.py","category":"test","purpose":"Python 서버 업그레이드 버전 파싱, 방향 판정, target series, upgrade/rollback 계획 테스트"},
     {"path":"scenarios/001-db-disk-capacity.json","category":"scenario-data","purpose":"DB 디스크 포화의 온라인·배치 연쇄 영향"},
     {"path":"scenarios/002-batch-critical-path.json","category":"scenario-data","purpose":"선행 Job 실패와 Critical Path 마감 영향"},
     {"path":"scenarios/003-backup-integrity.json","category":"scenario-data","purpose":"백업 해시 불일치와 복구 가능성 저하"},
@@ -87,6 +91,7 @@
     {"path":"backup_verify.py","category":"python-cli","purpose":"백업 존재·크기·신선도·SHA-256 검증"},
     {"path":"cert_expiry.py","category":"python-cli","purpose":"TLS 인증서 만료 사전 점검"},
     {"path":"incident_report.py","category":"python-cli","purpose":"장애 보고서·타임라인·교대 인수인계 Markdown 생성"},
+    {"path":"python_server_upgrade.py","category":"python-cli","purpose":"Python 서버 런타임 업그레이드 사전점검, side-by-side 전환 및 rollback 계획 생성"},
     {"path":"domains.txt","category":"input","purpose":"인증서 만료 점검 대상 목록"}
   ]
 }
