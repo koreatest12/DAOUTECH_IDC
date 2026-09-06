@@ -1,0 +1,96 @@
+name: Python 서버 업그레이드 준비도
+
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 검증할 서버 OS
+        required: true
+        default: ubuntu-latest
+        type: choice
+        options:
+          - ubuntu-latest
+          - windows-latest
+      target_python:
+        description: 목표 Python 안정 계열
+        required: true
+        default: '3.14'
+        type: choice
+        options:
+          - '3.13'
+          - '3.14'
+      service_name:
+        description: 서비스 이름(계획 표시용, 실제 변경하지 않음)
+        required: false
+        default: portfolio-service
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    name: ${{ inputs.os }} · Python ${{ inputs.target_python }} Upgrade Readiness
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 15
+
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v7
+
+      - name: 목표 Python 준비
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ inputs.target_python }}
+
+      - name: 목표 런타임 확인
+        run: python --version
+
+      - name: 전체 Python compile
+        run: python -m compileall -q .
+
+      - name: Unit Test
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+      - name: Python 서버 업그레이드 strict precheck
+        shell: bash
+        run: |
+          set -o pipefail
+          python python_server_upgrade.py \
+            --target "${{ inputs.target_python }}" \
+            --target-executable python \
+            --service "${{ inputs.service_name }}" \
+            --strict-target-installed \
+            --report python-upgrade-report.md \
+            --json-report python-upgrade-report.json 2>&1 | tee python-upgrade-output.txt
+
+      - name: 결과 요약
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '# Python 서버 업그레이드 준비도'
+            echo ''
+            echo '- OS: **${{ inputs.os }}**'
+            echo '- Target Python: **${{ inputs.target_python }}**'
+            echo '- 실제 서버 변경: **없음**'
+            echo ''
+            if [ -s python-upgrade-report.md ]; then
+              cat python-upgrade-report.md
+            else
+              echo '> 업그레이드 리포트가 생성되지 않았습니다.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 업그레이드 검증 증거 보관
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-upgrade-readiness-${{ inputs.os }}-py${{ inputs.target_python }}-${{ github.run_number }}
+          path: |
+            python-upgrade-report.md
+            python-upgrade-report.json
+            python-upgrade-output.txt
+            docs/PYTHON_SERVER_UPGRADE.md
+          retention-days: 30
+          if-no-files-found: warn

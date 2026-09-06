@@ -1,17 +1,18 @@
 # IDC 운영 자동화·시뮬레이션 포트폴리오
 
-데이터센터·금융권 IT 인프라 운영 관점에서 서버 점검, 배치 운영, 장애 대응, 변경관리, 백업, 네트워크·보안, Capacity Planning과 SLA 판단을 **Python 운영 도구 + HTML 시뮬레이터 + 결정적 CI 검증 + 면접 Lifecycle 관리**로 구현한 포트폴리오입니다.
+데이터센터·금융권 IT 인프라 운영 관점에서 서버 점검, 배치 운영, 장애 대응, 변경관리, 백업, 네트워크·보안, Capacity Planning, SLA 판단과 Python 런타임 업그레이드를 **Python 운영 도구 + HTML 시뮬레이터 + 결정적 CI 검증 + 면접 Lifecycle 관리**로 구현한 포트폴리오입니다.
 
 실제 운영 경험을 바탕으로 한 영역과 학습·확장 시뮬레이션 영역을 구분하며, 실제 회사·고객의 서버명·IP·로그·업무 데이터는 포함하지 않습니다.
 
 ## 핵심 포인트
 
 - **운영 자동화**: Health Check, 로그 분석, 알람 상관분석, 백업 검증, 인증서, Capacity/SLA
+- **Python 서버 업그레이드**: 현재 런타임/디스크/pip/source compile 사전점검 → side-by-side 전환 계획 → 신규 venv 검증 → Post Check → Rollback 계획
 - **배치 운영**: 선후행, Critical Path, 재실행, 마감/SLA 영향
 - **장애 대응**: 원인 후보 → 영향 범위 → 조치 → 보고서 → 교대 인수인계
 - **변경관리**: 사전점검 → 변경 → Post Check → Rollback 판단
 - **운영 시나리오 회귀검증**: Root Cause·후행 영향·SLA 위험을 계산해 기대값과 대조
-- **교차환경 테스트**: Ubuntu/Windows × Python 3.12/3.13
+- **교차환경 테스트**: Ubuntu/Windows × Python 3.12/3.13/3.14
 - **보안검사**: CodeQL Python + JavaScript/TypeScript
 - **의존성 관리**: Dependabot minor/patch 그룹 검증, major 별도 검토
 - **면접 Lifecycle**: 전체 Git 추적 파일의 등록·분류·설명 근거·업그레이드·릴리스 준비도 자동 관리
@@ -24,10 +25,38 @@
 
 - [Architecture](docs/ARCHITECTURE.md) — 운영 기능과 검증 파이프라인 구조
 - [Operations Runbook](docs/RUNBOOK.md) — 장애·배치·변경·백업·네트워크 상황별 판단 순서
+- [Python Server Upgrade](docs/PYTHON_SERVER_UPGRADE.md) — Python 런타임 업그레이드 사전점검·전환·Post Check·Rollback Runbook
 - [Interview Guide](docs/INTERVIEW_GUIDE.md) — 기능별 면접 설명 근거, 예상 질문, 경험/시뮬레이션 경계
 - [Feature Lifecycle](docs/FEATURE_LIFECYCLE.md) — 기능 등록·분석·검증·업그레이드·릴리스 정책
 - [Submission Guide](SUBMISSION.md) — 채용 제출부터 면접 전까지의 검증 기준
 - [Feature Catalog](feature-catalog.json) — 면접 도메인, 준비 요구사항, 업그레이드 백로그, 릴리스 채널
+
+## Python 서버 업그레이드 기능
+
+`python_server_upgrade.py`는 서버 Python을 직접 설치하거나 삭제하지 않는 **사전점검·변경계획 생성기**입니다.
+
+```bash
+python python_server_upgrade.py \
+  --target 3.14 \
+  --report python-upgrade-report.md \
+  --json-report python-upgrade-report.json
+```
+
+확인 항목:
+
+- 현재 Python 버전/실행파일/가상환경
+- OS/아키텍처
+- 가용 디스크
+- 현재 `pip check`
+- Git 추적 Python 전체 source compile
+- 목표 Python 실행파일 존재 여부
+- Upgrade/Patch/Downgrade 방향
+- side-by-side 설치·신규 venv·서비스 전환 계획
+- Post Check 및 Rollback 계획
+
+목표 런타임 설치 후에는 `--strict-target-installed`로 실제 target executable 존재까지 강제할 수 있습니다. CI에서는 Python 설치/삭제, 서비스 재기동, systemd/Windows Service 변경을 수행하지 않습니다.
+
+전용 [Python 서버 업그레이드 준비도 Workflow](.github/workflows/python-upgrade-readiness.yml)에서는 Ubuntu/Windows와 목표 Python 3.13/3.14를 선택해 strict precheck 증거를 Artifact로 생성할 수 있습니다.
 
 ## 전체 제출·면접 준비 검증
 
@@ -52,7 +81,8 @@ Scenario Regression     PASS
 Interview Lifecycle     READY
 Deterministic Summary   READY
 Unit Tests              PASS
-Cross-platform Tests    PASS
+Cross-platform Tests    PASS (Python 3.12/3.13/3.14)
+Python Upgrade Precheck PASS
 CodeQL                  PASS
 ```
 
@@ -90,7 +120,7 @@ P0/P1/P2 업그레이드 계획
 |---|---|
 | 문서·정책·의존성 | README, Runbook, Manifest, Dependabot, Runtime 정책 |
 | 품질·CI·보안·릴리스 | Review, Functional, Tests, CodeQL, Pages, Release Workflow |
-| IDC 운영 자동화 | Health, Log/Alert, Capacity/SLA, Backup, Cert, Watchdog, Incident |
+| IDC 운영 자동화 | Health, Log/Alert, Capacity/SLA, Backup, Cert, Watchdog, Incident, Python Runtime Upgrade |
 | 운영 시나리오 | Root Cause, 후행 영향, SLA 회귀검증 JSON/Runner |
 | 브라우저 시뮬레이터 | NOC, Batch, Incident, Change, Backup, Server, Network, Security |
 
@@ -169,8 +199,9 @@ Expected Result Comparison
 |---|---|
 | [통합 제출 검수](.github/workflows/summary.yml) | Review → Analyze → Functional → Scenario → Lifecycle → Summary → HTML Report |
 | [면접 Lifecycle 관리](.github/workflows/portfolio-management.yml) | 전체 파일 인벤토리·면접 준비도·업그레이드 계획 자동 관리 |
+| [Python 서버 업그레이드](.github/workflows/python-upgrade-readiness.yml) | OS/목표 Python 선택 → strict precheck → 업그레이드/rollback 증거 Artifact |
 | [릴리스 준비](.github/workflows/release-readiness.yml) | 전체 검증 후 전체 소스/증거 Bundle Artifact 생성 |
-| [교차환경 테스트](.github/workflows/tests.yml) | Ubuntu/Windows × Python 3.12/3.13 compile/unittest/scenario |
+| [교차환경 테스트](.github/workflows/tests.yml) | Ubuntu/Windows × Python 3.12/3.13/3.14 compile/unittest/scenario/upgrade precheck |
 | [CodeQL](.github/workflows/codeql.yml) | Python / JavaScript 정적 보안 분석 |
 | [Pages 준비](.github/workflows/pages-preview.yml) | 정적 사이트 검증 후 배포 가능한 `_site` Artifact 생성 |
 | [개별 파일 실행](.github/workflows/run-files.yml) | Python/HTML 개별 smoke/functional 실행 |
@@ -203,6 +234,7 @@ Expected Result Comparison
 | `backup_verify.py` | 존재·크기·신선도·SHA-256 백업 검증 |
 | `cert_expiry.py` | TLS 인증서 만료 사전 확인 |
 | `incident_report.py` | 장애보고서·타임라인·교대 인수인계 생성 |
+| `python_server_upgrade.py` | Python 런타임 사전점검·side-by-side 업그레이드·Post Check·Rollback 계획 |
 | `scenario_runner.py` | 운영 시나리오 Root Cause·영향·SLA 회귀 검증 |
 | `tools/portfolio_manager.py` | 전체 파일 Lifecycle·면접·업그레이드·릴리스 준비도 관리 |
 
@@ -215,21 +247,23 @@ Expected Result Comparison
 5. 가능한 GitHub Runner에서는 HTML을 독립 profile의 headless 브라우저로 실제 로딩합니다.
 6. JSON을 실제 파싱하고 README 로컬 링크와 제출 필수 경로를 확인합니다.
 7. 운영 시나리오는 Root Cause/영향/SLA 예상값과 실제 결과를 대조합니다.
-8. Ubuntu/Windows에서 Python 핵심 로직을 교차 검증합니다.
-9. CodeQL로 Python/JavaScript 정적 보안 분석을 수행합니다.
-10. Lifecycle 관리기는 모든 Git 추적 파일이 Manifest/Catalog 관리망에 포함됐는지 검사합니다.
-11. 실제 서버 설정 변경, 방화벽 정책 적용, 운영 서비스 재기동, 실제 백업 변경은 CI에서 실행하지 않습니다.
-12. 외부 AI 서비스 상태는 품질 판정에 영향을 주지 않습니다.
+8. Ubuntu/Windows에서 Python 3.12/3.13/3.14 핵심 로직을 교차 검증합니다.
+9. Python 업그레이드는 기존 런타임을 덮어쓰지 않고 side-by-side + 신규 venv + Post Check + Rollback을 기본 정책으로 합니다.
+10. CodeQL로 Python/JavaScript 정적 보안 분석을 수행합니다.
+11. Lifecycle 관리기는 모든 Git 추적 파일이 Manifest/Catalog 관리망에 포함됐는지 검사합니다.
+12. 실제 서버 Python 설치/삭제, 서버 설정 변경, 방화벽 정책 적용, 운영 서비스 재기동, 실제 백업 변경은 CI에서 실행하지 않습니다.
+13. 외부 AI 서비스 상태는 품질 판정에 영향을 주지 않습니다.
 
 ## 경험과 학습 범위
 
 **운영 경험을 바탕으로 구현한 영역**은 서버·네트워크 모니터링, 장애 1차 대응/에스컬레이션 판단, 배치 선후행·마감 관리, 백업 결과 확인, Linux/Windows 상태 조회, 변경 전후 확인, 교대 인수인계 관점입니다.
 
-**학습·확장 시뮬레이션 영역**에는 실제 담당 범위를 넘어서는 방화벽 정책 설계, DNS 세부 장애, 인증서 발급/갱신, 환경 설비 시나리오 등이 포함될 수 있으며 실무 경험으로 과장하지 않습니다.
+**학습·확장 시뮬레이션 영역**에는 실제 담당 범위를 넘어서는 방화벽 정책 설계, DNS 세부 장애, 인증서 발급/갱신, 환경 설비 시나리오, Python 런타임 업그레이드 자동 검증 모델 등이 포함될 수 있으며 실무 경험으로 과장하지 않습니다.
 
 ## 요구 환경
 
 - Python 3.12 이상
+- CI 검증 계열: Python 3.12 / 3.13 / 3.14
 - Node.js 24 이상
 - HTML 실행용 브라우저
 - Python 외부 패키지 없음

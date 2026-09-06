@@ -39,6 +39,11 @@ unit-test-results.txt
 scenario-test.md
 scenario-test.json
 scenario-test.txt
+python-upgrade-report.md
+python-upgrade-report.json
+python-upgrade-test.md
+python-upgrade-test.json
+python-upgrade-test.txt
 pages-review.md
 pages-review.json
 pages-functional.md

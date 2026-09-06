@@ -14,12 +14,12 @@ jobs:
   unit-tests:
     name: ${{ matrix.os }} · Python ${{ matrix.python }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 12
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, windows-latest ]
-        python: [ '3.12', '3.13' ]
+        python: [ '3.12', '3.13', '3.14' ]
 
     steps:
       - name: 소스 체크아웃
@@ -48,6 +48,17 @@ jobs:
           set -o pipefail
           python scenario_runner.py scenarios --report scenario-test.md --json-report scenario-test.json 2>&1 | tee scenario-test.txt
 
+      - name: Python 서버 업그레이드 strict precheck
+        shell: bash
+        run: |
+          set -o pipefail
+          python python_server_upgrade.py \
+            --target "${{ matrix.python }}" \
+            --target-executable python \
+            --strict-target-installed \
+            --report python-upgrade-test.md \
+            --json-report python-upgrade-test.json 2>&1 | tee python-upgrade-test.txt
+
       - name: 결과 요약
         if: always()
         shell: bash
@@ -61,6 +72,7 @@ jobs:
             echo '```text'
             tail -n 35 unit-test-results.txt 2>/dev/null || true
             tail -n 10 scenario-test.txt 2>/dev/null || true
+            tail -n 10 python-upgrade-test.txt 2>/dev/null || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -74,5 +86,8 @@ jobs:
             scenario-test.txt
             scenario-test.md
             scenario-test.json
+            python-upgrade-test.txt
+            python-upgrade-test.md
+            python-upgrade-test.json
           retention-days: 14
           if-no-files-found: warn

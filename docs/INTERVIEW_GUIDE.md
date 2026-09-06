@@ -4,10 +4,10 @@
 
 ## 1. 3분 설명 구조
 
-1. **문제 영역**: 데이터센터·금융권 IT 인프라에서 반복되는 점검, 배치 마감, 장애 대응, 백업, 변경관리, Capacity/SLA 판단을 다룹니다.
+1. **문제 영역**: 데이터센터·금융권 IT 인프라에서 반복되는 점검, 배치 마감, 장애 대응, 백업, 변경관리, Capacity/SLA 판단과 Python 런타임 변경관리를 다룹니다.
 2. **구현 방식**: Python CLI, HTML 시뮬레이터, 운영 시나리오 JSON, GitHub Actions 검증으로 분리했습니다.
-3. **품질 근거**: 전체 파일 분석, functional 실행, 운영 시나리오 회귀검증, Ubuntu/Windows 교차테스트, CodeQL을 자동화했습니다.
-4. **안전 원칙**: CI에서는 실제 서비스 재기동·방화벽 변경·운영 백업 변경을 하지 않습니다.
+3. **품질 근거**: 전체 파일 분석, functional 실행, 운영 시나리오 회귀검증, Ubuntu/Windows × Python 3.12/3.13/3.14 교차테스트, CodeQL을 자동화했습니다.
+4. **안전 원칙**: CI에서는 실제 Python 설치·삭제, 서비스 재기동·방화벽 변경·운영 백업 변경을 하지 않습니다.
 5. **경험 경계**: 실제 운영 관점에서 익숙한 흐름과 학습·확장 시뮬레이션을 명확히 나눕니다.
 
 ## 2. 기능별 설명 포인트
@@ -15,6 +15,7 @@
 | 영역 | 먼저 보여줄 파일 | 면접에서 설명할 핵심 |
 |---|---|---|
 | 서버/NOC | `healthcheck.py`, `noc-dashboard.html` | 임계치, 상태코드, 1차 판단, 오탐 방지 |
+| Python Runtime | `../python_server_upgrade.py`, `../.github/workflows/python-upgrade-readiness.yml` | side-by-side, 신규 venv, strict precheck, Post Check, Rollback |
 | 배치 | `batch-operations-lab.html`, `../scenarios/002-batch-critical-path.json` | 선후행, Critical Path, 재실행, 마감/SLA |
 | 장애 | `incident-lab.html`, `scenario_runner.py` | Root Cause 후보, 영향 범위, 에스컬레이션 |
 | 로그/알람 | `log_analyzer.py`, `alert_correlator.py` | 로그 정규화, 급증 탐지, 다중 알람 상관분석 |
@@ -30,6 +31,7 @@
 - 시뮬레이터에서 만든 서버명·장애 수치·로그를 실제 고객 운영 데이터라고 말하지 않습니다.
 - 실제 경험이 있는 운영 흐름은 경험 기반이라고 설명하되, 저장소 구현 자체를 실운영 배포 실적이라고 표현하지 않습니다.
 - `svc_watchdog.py`의 CI 검증은 `--dry-run`입니다. 실제 서비스 재기동 자동화를 운영에 적용했다고 과장하지 않습니다.
+- `../python_server_upgrade.py`는 계획/사전검증 전용입니다. 실제 운영 서버 Python을 자동 업그레이드했다고 표현하지 않습니다.
 - CodeQL PASS는 모든 보안 취약점이 없다는 의미가 아니라, 현재 코드가 설정된 정적 분석을 통과했다는 의미로 설명합니다.
 - GitHub Pages는 저장소 설정이 활성화된 경우에만 실제 공개 배포가 됩니다. 현재 Workflow의 목적은 Pages-ready 패키징과 검증입니다.
 
@@ -83,8 +85,14 @@
 
 답변 포인트: functional은 실제 입력/출력/종료코드 동작을 확인하고, CodeQL은 실행만으로 드러나지 않는 코드 패턴과 보안 문제를 정적으로 분석합니다.
 
+### Q9. Python 서버 업그레이드를 왜 in-place로 덮어쓰지 않습니까?
+
+근거: `../python_server_upgrade.py`, [Python Server Upgrade Runbook](PYTHON_SERVER_UPGRADE.md)
+
+답변 포인트: 기존 런타임을 유지한 채 목표 Python과 신규 venv를 side-by-side로 검증해야 장애 시 서비스 경로만 이전 상태로 되돌릴 수 있습니다. `pip check`, source compile, unit/functional test, Post Check를 통과한 뒤 전환하고 문제가 생기면 이전 Python/venv 경로로 Rollback하는 것이 안전합니다.
+
 ## 5. 면접 직전 체크
 
 전체 명령은 저장소 루트의 [README 실행 절차](../README.md)와 [제출·면접 준비 가이드](../SUBMISSION.md)를 사용합니다.
 
-최종적으로 `interview-readiness.md`가 `READY`, 기존 deterministic summary가 `READY`, 관련 GitHub Actions가 모두 성공인지 확인합니다.
+최종적으로 `interview-readiness.md`가 `READY`, 기존 deterministic summary가 `READY`, Python 3.14 교차환경/upgrade precheck를 포함한 관련 GitHub Actions가 모두 성공인지 확인합니다.
