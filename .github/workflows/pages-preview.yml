@@ -25,7 +25,7 @@ jobs:
           python-version: '3.12'
 
       - name: Node 준비
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           package-manager-cache: false
