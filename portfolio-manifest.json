@@ -12,7 +12,7 @@
   },
   "submission_required": [
     "README.md", "SUBMISSION.md", "LICENSE", "requirements.txt", ".gitignore", "portfolio-manifest.json", "feature-catalog.json",
-    ".github/workflows/summary.yml", ".github/workflows/run-files.yml", ".github/workflows/tests.yml",
+    ".github/workflows/summary.yml", ".github/workflows/run-files.yml", ".github/workflows/tests.yml", ".github/workflows/python-upgrade-readiness.yml",
     ".github/workflows/codeql.yml", ".github/workflows/pages-preview.yml", ".github/workflows/portfolio-management.yml",
     ".github/workflows/release-readiness.yml", ".github/dependabot.yml", ".github/ISSUE_TEMPLATE/feature-upgrade.yml",
     "tools/review_repo.py", "tools/run_analyze.py", "tools/execute_repo.py", "tools/summarize_reports.py", "tools/portfolio_report.py", "tools/portfolio_manager.py",
@@ -49,6 +49,7 @@
     {"path":".github/workflows/summary.yml","category":"ci","purpose":"품질검수, 전체 분석, functional, 시나리오, lifecycle, 결정적 요약, HTML 리포트 생성"},
     {"path":".github/workflows/run-files.yml","category":"ci-execution","purpose":"Actions에서 개별 도구/시뮬레이터 선택 실행"},
     {"path":".github/workflows/tests.yml","category":"ci-test","purpose":"Ubuntu/Windows 및 Python 3.12/3.13/3.14 교차환경 compile/unittest/시나리오/업그레이드 검증"},
+    {"path":".github/workflows/python-upgrade-readiness.yml","category":"ci-execution","purpose":"선택한 OS와 목표 Python 계열에서 서버 업그레이드 strict precheck와 증거 Artifact 생성"},
     {"path":".github/workflows/codeql.yml","category":"security-ci","purpose":"Python 및 JavaScript CodeQL 정적 보안 분석"},
     {"path":".github/workflows/pages-preview.yml","category":"deployment-ci","purpose":"GitHub Pages 활성화 전 정적 사이트 품질검증과 배포 Artifact 생성"},
     {"path":".github/workflows/portfolio-management.yml","category":"lifecycle-management","purpose":"전체 기능 인벤토리, 면접 준비도, 업그레이드 우선순위를 정기/PR 자동 관리"},
