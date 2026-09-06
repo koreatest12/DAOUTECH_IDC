@@ -6,7 +6,7 @@
 
 - `portfolio-manifest.json`: 저장소 파일별 역할과 제출 필수 파일
 - `feature-catalog.json`: 면접 도메인, 준비 요구사항, 업그레이드 백로그, 릴리스 채널
-- `tools/portfolio_manager.py`: 위 두 파일과 실제 `git ls-files`를 비교해 전체 상태를 결정적으로 집계
+- `../tools/portfolio_manager.py`: 위 두 파일과 실제 `git ls-files`를 비교해 전체 상태를 결정적으로 집계
 
 새 파일을 추가하고 Manifest에 등록하지 않으면 Lifecycle 리포트가 `BLOCKED`가 됩니다.
 
