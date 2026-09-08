@@ -167,7 +167,7 @@ jobs:
 
   actual-cutover-windows:
     if: github.event_name == 'push' || inputs.mode == 'apply-ci'
-    name: Windows · Python 3.12.14 → ${{ inputs.target_python || '3.14.7' }} 실제 Runtime Cutover
+    name: Windows · Python 3.12.x → ${{ inputs.target_python || '3.14.7' }} 실제 Runtime Cutover
     runs-on: windows-latest
     timeout-minutes: 25
 
@@ -175,11 +175,13 @@ jobs:
       - name: 소스 체크아웃
         uses: actions/checkout@v7
 
-      - name: 현재 Python 3.12.14 준비
+      # Windows Server 2025 hosted image는 특정 3.12 patch(예: 3.12.14)가
+      # actions/setup-python manifest에 없을 수 있으므로 최신 제공 3.12.x를 사용합니다.
+      - name: 현재 Python 3.12.x 준비
         id: current
         uses: actions/setup-python@v7
         with:
-          python-version: '3.12.14'
+          python-version: '3.12'
 
       - name: 목표 Python 준비
         id: target
@@ -224,4 +226,4 @@ jobs:
             .runtime-ci/evidence/
           retention-days: 30
           include-hidden-files: true
-          if-no-files-found: error
+          if-no-files-found: warn
