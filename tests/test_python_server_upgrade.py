@@ -76,6 +76,18 @@ class PythonServerUpgradeTests(unittest.TestCase):
         self.assertEqual(probe["status"], "AVAILABLE")
         self.assertIsNotNone(probe["version_tuple"])
 
+    def test_command_result_decodes_utf8_output(self) -> None:
+        result = upgrade.command_result(
+            [
+                sys.executable,
+                "-c",
+                "import sys; sys.stdout.buffer.write('한글 UTF-8 출력\\n'.encode('utf-8'))",
+            ]
+        )
+        self.assertEqual(result["status"], "PASS")
+        self.assertEqual(result["stdout"], "한글 UTF-8 출력")
+        self.assertEqual(result["stderr"], "")
+
 
 if __name__ == "__main__":
     unittest.main()
