@@ -41,10 +41,16 @@ def run(cmd, timeout=30):
         return 1, str(exc)
 
 
+def ps_single_quote(value):
+    """Escape one value for use inside a PowerShell single-quoted literal."""
+    return str(value).replace("'", "''")
+
+
 def is_running(name):
     if WIN:
-        rc, out = run(["powershell", "-NoProfile", "-Command",
-                       f"(Get-Service -Name '{name}' -ErrorAction SilentlyContinue).Status"])
+        safe_name = ps_single_quote(name)
+        rc, out = run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                       f"(Get-Service -Name '{safe_name}' -ErrorAction SilentlyContinue).Status"])
         return out == "Running", out or "서비스 없음"
     if shutil.which("systemctl"):
         rc, out = run(["systemctl", "is-active", name])
@@ -55,7 +61,9 @@ def is_running(name):
 
 def start(name):
     if WIN:
-        return run(["powershell", "-NoProfile", "-Command", f"Start-Service -Name '{name}'"])
+        safe_name = ps_single_quote(name)
+        return run(["powershell", "-NoProfile", "-NonInteractive", "-Command",
+                    f"Start-Service -Name '{safe_name}'"])
     if shutil.which("systemctl"):
         return run(["systemctl", "start", name])
     return 1, "재기동 방법을 찾지 못했습니다"

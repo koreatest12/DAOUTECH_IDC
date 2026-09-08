@@ -13,6 +13,7 @@ on:
           - portfolio-site
           - tagged
   push:
+    branches: [ main ]
     tags:
       - 'v*'
 
@@ -24,6 +25,8 @@ jobs:
     name: 전체 검증·면접 증거·릴리스 Bundle
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      RELEASE_CHANNEL: ${{ github.event_name == 'workflow_dispatch' && inputs.channel || (startsWith(github.ref, 'refs/tags/v') && 'tagged' || 'candidate') }}
 
     steps:
       - name: 소스 체크아웃
@@ -97,12 +100,17 @@ jobs:
           cp deterministic-summary.md deterministic-summary.json release-bundle/evidence/
           cp interview-readiness.md interview-readiness.json release-bundle/evidence/
           cp feature-inventory.md upgrade-plan.md portfolio-report.html unit-test-results.txt release-bundle/evidence/
-          printf '%s\n' "commit=${GITHUB_SHA}" "event=${GITHUB_EVENT_NAME}" "ref=${GITHUB_REF}" > release-bundle/RELEASE-METADATA.txt
+          printf '%s\n' \
+            "commit=${GITHUB_SHA}" \
+            "event=${GITHUB_EVENT_NAME}" \
+            "ref=${GITHUB_REF}" \
+            "channel=${RELEASE_CHANNEL}" \
+            > release-bundle/RELEASE-METADATA.txt
 
       - name: 릴리스 Bundle 보관
         uses: actions/upload-artifact@v7
         with:
-          name: portfolio-release-${{ github.run_number }}-${{ inputs.channel || 'tagged' }}
+          name: portfolio-release-${{ github.run_number }}-${{ env.RELEASE_CHANNEL }}
           path: release-bundle/
           retention-days: 90
           if-no-files-found: error
@@ -116,7 +124,7 @@ jobs:
             echo ""
             echo "- Commit: **${GITHUB_SHA}**"
             echo "- Ref: **${GITHUB_REF}**"
-            echo "- Channel: **${{ inputs.channel || 'tagged' }}**"
+            echo "- Channel: **${RELEASE_CHANNEL}**"
             echo ""
             cat interview-readiness.md
             echo ""

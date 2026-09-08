@@ -9,9 +9,10 @@
     존재    — 있어야 할 파일이 실제로 있는가
     크기    — 최소 기대 크기를 넘는가 (0바이트, 중단된 파일 걸러내기)
     신선도  — 몇 시간 안에 만들어진 것인가 (어제 파일 재사용 걸러내기)
-    무결성  — SHA-256이 기록과 일치하는가
+    무결성  — SHA-256이 승인된 기준값과 일치하는가
 
-첫 실행 때 --record로 기준 해시를 만들고, 이후 실행에서 대조한다.
+기준 해시는 반드시 --record를 명시한 승인 실행에서만 기록한다.
+일반 검증 중 기준 해시가 없으면 WARN으로 판정하며 자동 등록하지 않는다.
 
 사용법
     python3 backup_verify.py manifest.json --record
@@ -81,12 +82,11 @@ def verify(entry, base, max_age, record, skip_hash):
     digest = sha256(path)
     if record:
         entry["sha256"] = digest
-        return "OK", f"{human(size)} · 기준 해시 기록"
+        return "OK", f"{human(size)} · 승인된 기준 해시 기록"
 
     expected = entry.get("sha256")
     if not expected:
-        entry["sha256"] = digest
-        return "WARN", f"{human(size)} · 기준 해시가 없어 이번 값을 기록"
+        return "WARN", f"{human(size)} · 기준 해시 없음 — --record 승인 실행 필요"
     if expected != digest:
         return "FAIL", f"해시 불일치 (기대 {expected[:12]}… / 실제 {digest[:12]}…)"
 
@@ -97,7 +97,7 @@ def verify(entry, base, max_age, record, skip_hash):
 def main():
     ap = argparse.ArgumentParser(description="백업 파일 검증")
     ap.add_argument("manifest", help="매니페스트 JSON 경로")
-    ap.add_argument("--record", action="store_true", help="현재 해시를 기준으로 기록")
+    ap.add_argument("--record", action="store_true", help="현재 해시를 승인된 기준값으로 기록")
     ap.add_argument("--skip-hash", action="store_true", help="해시 계산 생략")
     ap.add_argument("--init", action="store_true", help="예시 매니페스트를 만들고 종료")
     args = ap.parse_args()
@@ -132,12 +132,13 @@ def main():
         counts[status] += 1
         print(f"  [{status:<4}] {entry['name']:<28} {note}")
 
-    if args.record or any(e.get("sha256") for e in files):
+    if args.record:
         try:
             with open(args.manifest, "w", encoding="utf-8") as f:
                 json.dump(m, f, ensure_ascii=False, indent=2)
         except OSError as exc:
             print(f"매니페스트 갱신 실패: {exc}", file=sys.stderr)
+            return 2
 
     print("-" * 78)
     print(f"정상 {counts['OK']} · 주의 {counts['WARN']} · 실패 {counts['FAIL']}")

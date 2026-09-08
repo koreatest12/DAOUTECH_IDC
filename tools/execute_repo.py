@@ -20,6 +20,7 @@ PYTHON_TOOLS = [
     "healthcheck.py", "log_analyzer.py", "disk_forecast.py", "svc_watchdog.py",
     "backup_verify.py", "cert_expiry.py", "incident_report.py",
     "alert_correlator.py", "capacity_planner.py", "sla_calculator.py",
+    "python_server_upgrade.py",
 ]
 HTML_FILES = [
     "index.html", "noc-dashboard.html", "linux-security-lab.html",
@@ -134,7 +135,7 @@ def run_python(name: str, mode: str, sandbox: Path, log_dir: Path) -> list[dict[
         return [record(name,[py,name,"__portfolio_missing_service__","--dry-run","--state",str(sandbox/"watchdog.json"),"--max-restarts","1"],log_dir,{0,1,2},"Dry-run only; no service restart")]
     if name == "backup_verify.py":
         manifest=backup_manifest(sandbox)
-        return [record(name+"#record",[py,name,str(manifest),"--record"],log_dir,{0},"Sandbox SHA-256 baseline"),
+        return [record(name+"#record",[py,name,str(manifest),"--record"],log_dir,{0},"Explicit sandbox SHA-256 baseline approval"),
                 record(name+"#verify",[py,name,str(manifest)],log_dir,{0},"Sandbox backup re-verification")]
     if name == "cert_expiry.py":
         return [record(name,[py,name,"example.com","--timeout","3"],log_dir,{0,1,2},"Read-only TLS check; network result is domain verdict",25)]
@@ -151,10 +152,16 @@ def run_python(name: str, mode: str, sandbox: Path, log_dir: Path) -> list[dict[
     if name == "capacity_planner.py":
         src=sandbox/"capacity.json"; out=sandbox/"capacity.md"
         a=record(name+"#init",[py,name,str(src),"--init"],log_dir,{0},"Generate capacity fixture")
-        b=record(name+"#forecast",[py,name,str(src),"--output",str(out)],log_dir,{0,1},"Forecast capacity thresholds")
+        b=record(name+"#forecast",[py,name,str(src),"--output",str(out)],log_dir,{0,1,2},"Forecast capacity thresholds with OK/WARN/CRIT exit codes")
         return [a,b]
     if name == "sla_calculator.py":
         return [record(name,[py,name,"--days","30","--downtime","3","--targets","99.9","99.95","99.99"],log_dir,{0,1},"Calculate allowed downtime and SLA verdict")]
+    if name == "python_server_upgrade.py":
+        target=f"{sys.version_info.major}.{sys.version_info.minor}"
+        report=sandbox/"python-upgrade.md"; js=sandbox/"python-upgrade.json"
+        return [record(name,[py,name,"--target",target,"--target-executable",py,"--strict-target-installed",
+                            "--report",str(report),"--json-report",str(js)],log_dir,{0},
+                       "Strict current-runner precheck; safe_mode=true and no runtime/service changes")]
     return [record(name,[py,name,"--help"],log_dir,{0})]
 
 
@@ -225,7 +232,7 @@ def render(records: list[dict[str, Any]], target: str, mode: str) -> str:
     for r in records:
         detail="; ".join(x for x in (r.get("evidence",""),r.get("note","")) if x).replace("|","\\|")
         lines.append(f"| {r['status']} | `{r['target']}` | {r.get('exit_code')} | {detail} |")
-    lines += ["","## 안전 정책","","- 서비스 워치독은 `--dry-run`만 사용합니다.","- 백업/이력/보고서 입력은 임시 샌드박스에 생성합니다.","- 인증서 검사는 읽기 전용 TLS 연결만 수행합니다.","- HTML은 JavaScript 검사 후 격리된 headless 브라우저 profile과 제한된 virtual time으로 실제 로딩합니다.",""]
+    lines += ["","## 안전 정책","","- 서비스 워치독은 `--dry-run`만 사용합니다.","- 백업/이력/보고서 입력은 임시 샌드박스에 생성합니다.","- 인증서 검사는 읽기 전용 TLS 연결만 수행합니다.","- Python 런타임 업그레이드는 strict precheck만 수행하며 설치·삭제·서비스 변경을 하지 않습니다.","- HTML은 JavaScript 검사 후 격리된 headless 브라우저 profile과 제한된 virtual time으로 실제 로딩합니다.",""]
     return "\n".join(lines)
 
 
