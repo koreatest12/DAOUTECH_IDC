@@ -3,6 +3,8 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+.runtime/
+.runtime-ci/
 
 # IDE / OS
 .vscode/
@@ -54,6 +56,8 @@ interview-readiness.md
 interview-readiness.json
 feature-inventory.md
 upgrade-plan.md
+repository-governance.md
+repository-governance.json
 
 # Generated portfolio examples/reports
 incident-report.md
