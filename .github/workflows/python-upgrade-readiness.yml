@@ -202,12 +202,19 @@ jobs:
           CURRENT_PY: ${{ steps.current.outputs.python-path }}
           TARGET_PY: ${{ steps.target.outputs.python-path }}
           TARGET_VERSION: ${{ inputs.target_python || '3.14.7' }}
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: 'utf-8'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           & $env:CURRENT_PY --version
+          if ($LASTEXITCODE -ne 0) { throw "current Python probe failed: $LASTEXITCODE" }
           & $env:TARGET_PY --version
-          & $env:CURRENT_PY python_server_upgrade.py `
+          if ($LASTEXITCODE -ne 0) { throw "target Python probe failed: $LASTEXITCODE" }
+
+          # -X utf8: 부모 Python의 subprocess text decode를 UTF-8로 강제합니다.
+          # PYTHONUTF8/PYTHONIOENCODING: 신규 venv 및 모든 자식 Python 출력도 UTF-8로 고정합니다.
+          & $env:CURRENT_PY -X utf8 python_server_upgrade.py `
             --target $env:TARGET_VERSION `
             --target-executable $env:TARGET_PY `
             --service portfolio-service `
@@ -217,9 +224,18 @@ jobs:
             --runtime-root .runtime-ci `
             --report python-upgrade-report.md `
             --json-report python-upgrade-report.json
-          $meta = Get-Content .runtime-ci/current.json -Raw | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw "python_server_upgrade.py failed with exit code $LASTEXITCODE; runtime pointer verification is aborted"
+          }
+
+          if (-not (Test-Path '.runtime-ci/current.json')) {
+            throw 'runtime cutover reported success but .runtime-ci/current.json was not created'
+          }
+          $meta = Get-Content .runtime-ci/current.json -Raw -Encoding utf8 | ConvertFrom-Json
           if ($meta.version -ne $env:TARGET_VERSION) { throw "runtime pointer mismatch: $($meta.version)" }
-          & .runtime-ci/current-python.cmd --version
+
+          & '.\.runtime-ci\current-python.cmd' --version
+          if ($LASTEXITCODE -ne 0) { throw "stable runtime launcher failed: $LASTEXITCODE" }
 
       - name: Windows Cutover 증거 보관
         if: always()
