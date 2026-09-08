@@ -98,19 +98,25 @@ def command_result(
 ) -> dict[str, Any]:
     pass_codes = pass_codes or {0}
     started = time.perf_counter()
+    child_env = os.environ.copy()
+    child_env.setdefault("PYTHONUTF8", "1")
+    child_env.setdefault("PYTHONIOENCODING", "utf-8")
     try:
         proc = subprocess.run(
             command,
             cwd=cwd or ROOT,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             capture_output=True,
             timeout=timeout,
+            env=child_env,
         )
         return {
             "command": command,
             "exit_code": proc.returncode,
-            "stdout": proc.stdout.strip(),
-            "stderr": proc.stderr.strip(),
+            "stdout": (proc.stdout or "").strip(),
+            "stderr": (proc.stderr or "").strip(),
             "status": "PASS" if proc.returncode in pass_codes else "FAIL",
             "duration_ms": int((time.perf_counter() - started) * 1000),
         }

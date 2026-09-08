@@ -9,6 +9,14 @@ on:
       - tools/**
       - tests/**
       - .github/workflows/python-upgrade-readiness.yml
+  pull_request:
+    branches: [ main ]
+    paths:
+      - python_server_upgrade.py
+      - requirements.txt
+      - tools/**
+      - tests/**
+      - .github/workflows/python-upgrade-readiness.yml
   workflow_dispatch:
     inputs:
       mode:
@@ -106,7 +114,7 @@ jobs:
           if-no-files-found: warn
 
   actual-cutover-ubuntu:
-    if: github.event_name == 'push' || inputs.mode == 'apply-ci'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || inputs.mode == 'apply-ci'
     name: Ubuntu · Python 3.12.14 → ${{ inputs.target_python || '3.14.7' }} 실제 Runtime Cutover
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -166,8 +174,8 @@ jobs:
           if-no-files-found: error
 
   actual-cutover-windows:
-    if: github.event_name == 'push' || inputs.mode == 'apply-ci'
-    name: Windows · Python 3.12.14 → ${{ inputs.target_python || '3.14.7' }} 실제 Runtime Cutover
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || inputs.mode == 'apply-ci'
+    name: Windows · Python 3.12.x → ${{ inputs.target_python || '3.14.7' }} 실제 Runtime Cutover
     runs-on: windows-latest
     timeout-minutes: 25
 
@@ -175,11 +183,13 @@ jobs:
       - name: 소스 체크아웃
         uses: actions/checkout@v7
 
-      - name: 현재 Python 3.12.14 준비
+      # Windows Server 2025 hosted image는 특정 3.12 patch(예: 3.12.14)가
+      # actions/setup-python manifest에 없을 수 있으므로 최신 제공 3.12.x를 사용합니다.
+      - name: 현재 Python 3.12.x 준비
         id: current
         uses: actions/setup-python@v7
         with:
-          python-version: '3.12.14'
+          python-version: '3.12'
 
       - name: 목표 Python 준비
         id: target
@@ -192,12 +202,19 @@ jobs:
           CURRENT_PY: ${{ steps.current.outputs.python-path }}
           TARGET_PY: ${{ steps.target.outputs.python-path }}
           TARGET_VERSION: ${{ inputs.target_python || '3.14.7' }}
+          PYTHONUTF8: '1'
+          PYTHONIOENCODING: 'utf-8'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           & $env:CURRENT_PY --version
+          if ($LASTEXITCODE -ne 0) { throw "current Python probe failed: $LASTEXITCODE" }
           & $env:TARGET_PY --version
-          & $env:CURRENT_PY python_server_upgrade.py `
+          if ($LASTEXITCODE -ne 0) { throw "target Python probe failed: $LASTEXITCODE" }
+
+          # -X utf8: 부모 Python의 subprocess text decode를 UTF-8로 강제합니다.
+          # PYTHONUTF8/PYTHONIOENCODING: 신규 venv 및 모든 자식 Python 출력도 UTF-8로 고정합니다.
+          & $env:CURRENT_PY -X utf8 python_server_upgrade.py `
             --target $env:TARGET_VERSION `
             --target-executable $env:TARGET_PY `
             --service portfolio-service `
@@ -207,9 +224,18 @@ jobs:
             --runtime-root .runtime-ci `
             --report python-upgrade-report.md `
             --json-report python-upgrade-report.json
-          $meta = Get-Content .runtime-ci/current.json -Raw | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) {
+            throw "python_server_upgrade.py failed with exit code $LASTEXITCODE; runtime pointer verification is aborted"
+          }
+
+          if (-not (Test-Path '.runtime-ci/current.json')) {
+            throw 'runtime cutover reported success but .runtime-ci/current.json was not created'
+          }
+          $meta = Get-Content .runtime-ci/current.json -Raw -Encoding utf8 | ConvertFrom-Json
           if ($meta.version -ne $env:TARGET_VERSION) { throw "runtime pointer mismatch: $($meta.version)" }
-          & .runtime-ci/current-python.cmd --version
+
+          & '.\.runtime-ci\current-python.cmd' --version
+          if ($LASTEXITCODE -ne 0) { throw "stable runtime launcher failed: $LASTEXITCODE" }
 
       - name: Windows Cutover 증거 보관
         if: always()
@@ -224,4 +250,4 @@ jobs:
             .runtime-ci/evidence/
           retention-days: 30
           include-hidden-files: true
-          if-no-files-found: error
+          if-no-files-found: warn
