@@ -42,6 +42,83 @@ jobs:
             --upgrade-report upgrade-plan.md \
             --fail-on-blocked
 
+      - name: 저장소 관리자 설정 자동 점검
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          from pathlib import Path
+
+          repo = os.environ['REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          desired_description = 'IDC 시스템 엔지니어 포트폴리오 | Python 운영 자동화·배치·장애·백업·변경관리·Windows/Linux 교차검증·CI/릴리스'
+
+          def get(url):
+              req = urllib.request.Request(
+                  url,
+                  headers={
+                      'Authorization': f'Bearer {token}',
+                      'Accept': 'application/vnd.github+json',
+                      'X-GitHub-Api-Version': '2022-11-28',
+                      'User-Agent': 'DAOUTECH-IDC-governance-check',
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=20) as response:
+                  return json.load(response)
+
+          repo_info = get(f'https://api.github.com/repos/{repo}')
+          branch_info = get(f'https://api.github.com/repos/{repo}/branches/main')
+          current_description = repo_info.get('description') or ''
+          protected = bool(branch_info.get('protected'))
+          description_ok = current_description == desired_description
+          status = 'READY' if protected and description_ok else 'ACTION_REQUIRED'
+
+          payload = {
+              'status': status,
+              'main_protected': protected,
+              'description_current': current_description,
+              'description_desired': desired_description,
+              'description_matches': description_ok,
+              'recommended_branch_policy': {
+                  'require_pull_request': True,
+                  'required_approvals': 0,
+                  'require_status_checks': [
+                      '전체 파일 검수·실행 분석·제출 판정',
+                      'CodeQL · python',
+                      'CodeQL · javascript-typescript',
+                  ],
+                  'require_up_to_date_branch': True,
+                  'require_conversation_resolution': True,
+                  'block_force_pushes': True,
+                  'block_deletions': True,
+              },
+          }
+          Path('repository-governance.json').write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          lines = [
+              '# Repository Governance', '',
+              f'- 상태: **{status}**',
+              f'- main Branch Protection: **{"ON" if protected else "OFF"}**',
+              f'- Description 일치: **{"YES" if description_ok else "NO"}**',
+              f'- 현재 Description: `{current_description}`',
+              f'- 목표 Description: `{desired_description}`', '',
+              '## 권장 Branch Protection', '',
+              '- Pull Request를 통해서만 main 변경',
+              '- 승인 수 0: 개인 포트폴리오 저장소이므로 본인 PR 병합 가능',
+              '- 필수 상태검사: 통합 제출 검수 + CodeQL Python + CodeQL JavaScript/TypeScript',
+              '- 최신 main 반영 요구',
+              '- Conversation resolution 요구',
+              '- Force push / branch deletion 차단',
+          ]
+          Path('repository-governance.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+          if not protected:
+              print('::warning::main Branch Protection이 비활성화되어 있습니다. GitHub 관리자 설정이 필요합니다.')
+          if not description_ok:
+              print('::warning::Repository Description이 포트폴리오 표준 설명과 일치하지 않습니다.')
+          print(f'Governance status: {status}')
+          PY
+
       - name: 단위 테스트
         run: python3 -m unittest discover -s tests -p 'test_*.py' -v
 
@@ -57,6 +134,10 @@ jobs:
             else
               echo "Lifecycle 리포트가 생성되지 않았습니다."
             fi
+            echo ""
+            if [ -s repository-governance.md ]; then
+              cat repository-governance.md
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: 관리 리포트 보관
@@ -69,6 +150,8 @@ jobs:
             interview-readiness.json
             feature-inventory.md
             upgrade-plan.md
+            repository-governance.md
+            repository-governance.json
             feature-catalog.json
             portfolio-manifest.json
             docs/INTERVIEW_GUIDE.md
