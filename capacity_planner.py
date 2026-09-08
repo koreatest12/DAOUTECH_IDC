@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Forecast CPU, memory and disk threshold dates from simple daily history."""
+"""Forecast CPU, memory and disk threshold dates from simple daily history.
+
+Exit codes:
+    0 = OK
+    1 = WARN (threshold expected within 30 days)
+    2 = CRIT (threshold already exceeded or input/processing error)
+"""
 
 from __future__ import annotations
 
@@ -55,6 +61,15 @@ def analyze(rows: list[dict], thresholds: dict[str, float] | None = None) -> lis
         status = "CRIT" if current >= threshold else "WARN" if days is not None and days <= 30 else "OK"
         result.append({"metric": metric, "current": current, "slope_per_day": slope, "threshold": threshold, "days_to_threshold": days, "eta": eta, "status": status})
     return result
+
+
+def exit_code(result: list[dict]) -> int:
+    statuses = {str(item.get("status", "OK")).upper() for item in result}
+    if "CRIT" in statuses:
+        return 2
+    if "WARN" in statuses:
+        return 1
+    return 0
 
 
 def render(rows: list[dict], result: list[dict]) -> str:
@@ -113,7 +128,7 @@ def main() -> int:
     text = render(rows, result)
     Path(args.output).write_text(text, encoding="utf-8")
     print(text)
-    return 1 if any(x["status"] == "CRIT" for x in result) else 0
+    return exit_code(result)
 
 
 if __name__ == "__main__":
