@@ -1,10 +1,26 @@
-name: Python 서버 업그레이드 준비도
+name: Python 서버 업그레이드 준비도·Runtime Cutover
 
 on:
+  push:
+    branches: [ main ]
+    paths:
+      - python_server_upgrade.py
+      - requirements.txt
+      - tools/**
+      - tests/**
+      - .github/workflows/python-upgrade-readiness.yml
   workflow_dispatch:
     inputs:
+      mode:
+        description: 실행 모드
+        required: true
+        default: precheck
+        type: choice
+        options:
+          - precheck
+          - apply-ci
       os:
-        description: 검증할 서버 OS
+        description: precheck 대상 OS
         required: true
         default: ubuntu-latest
         type: choice
@@ -12,15 +28,15 @@ on:
           - ubuntu-latest
           - windows-latest
       target_python:
-        description: 목표 Python 안정 계열
+        description: 목표 Python 정확한 버전
         required: true
-        default: '3.14'
+        default: '3.14.7'
         type: choice
         options:
-          - '3.13'
-          - '3.14'
+          - '3.13.15'
+          - '3.14.7'
       service_name:
-        description: 서비스 이름(계획 표시용, 실제 변경하지 않음)
+        description: 서비스 이름(증거 표시용)
         required: false
         default: portfolio-service
         type: string
@@ -30,7 +46,8 @@ permissions:
 
 jobs:
   readiness:
-    name: ${{ inputs.os }} · Python ${{ inputs.target_python }} Upgrade Readiness
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'precheck'
+    name: ${{ inputs.os }} · Python ${{ inputs.target_python }} Precheck
     runs-on: ${{ inputs.os }}
     timeout-minutes: 15
 
@@ -53,36 +70,30 @@ jobs:
         run: python -m unittest discover -s tests -p 'test_*.py' -v
 
       - name: Python 서버 업그레이드 strict precheck
-        shell: bash
-        run: |
-          set -o pipefail
-          python python_server_upgrade.py \
-            --target "${{ inputs.target_python }}" \
-            --target-executable python \
-            --service "${{ inputs.service_name }}" \
-            --strict-target-installed \
-            --report python-upgrade-report.md \
-            --json-report python-upgrade-report.json 2>&1 | tee python-upgrade-output.txt
+        run: >-
+          python python_server_upgrade.py
+          --target "${{ inputs.target_python }}"
+          --target-executable python
+          --service "${{ inputs.service_name }}"
+          --strict-target-installed
+          --report python-upgrade-report.md
+          --json-report python-upgrade-report.json
 
       - name: 결과 요약
         if: always()
         shell: bash
         run: |
           {
-            echo '# Python 서버 업그레이드 준비도'
+            echo '# Python 서버 업그레이드 Precheck'
             echo ''
             echo '- OS: **${{ inputs.os }}**'
             echo '- Target Python: **${{ inputs.target_python }}**'
-            echo '- 실제 서버 변경: **없음**'
+            echo '- managed runtime 변경: **없음**'
             echo ''
-            if [ -s python-upgrade-report.md ]; then
-              cat python-upgrade-report.md
-            else
-              echo '> 업그레이드 리포트가 생성되지 않았습니다.'
-            fi
+            if [ -s python-upgrade-report.md ]; then cat python-upgrade-report.md; fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: 업그레이드 검증 증거 보관
+      - name: Precheck 증거 보관
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -90,7 +101,127 @@ jobs:
           path: |
             python-upgrade-report.md
             python-upgrade-report.json
-            python-upgrade-output.txt
             docs/PYTHON_SERVER_UPGRADE.md
           retention-days: 30
           if-no-files-found: warn
+
+  actual-cutover-ubuntu:
+    if: github.event_name == 'push' || inputs.mode == 'apply-ci'
+    name: Ubuntu · Python 3.12.14 → ${{ inputs.target_python || '3.14.7' }} 실제 Runtime Cutover
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v7
+
+      - name: 현재 Python 3.12.14 준비
+        id: current
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12.14'
+
+      - name: 목표 Python 준비
+        id: target
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ inputs.target_python || '3.14.7' }}
+
+      - name: 실제 managed runtime 생성·검증·전환
+        env:
+          CURRENT_PY: ${{ steps.current.outputs.python-path }}
+          TARGET_PY: ${{ steps.target.outputs.python-path }}
+          TARGET_VERSION: ${{ inputs.target_python || '3.14.7' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$CURRENT_PY" --version
+          "$TARGET_PY" --version
+          "$CURRENT_PY" python_server_upgrade.py \
+            --target "$TARGET_VERSION" \
+            --target-executable "$TARGET_PY" \
+            --service portfolio-service \
+            --strict-target-installed \
+            --apply \
+            --confirm APPLY \
+            --runtime-root .runtime-ci \
+            --report python-upgrade-report.md \
+            --json-report python-upgrade-report.json
+          test "$(python -c 'import json; print(json.load(open(".runtime-ci/current.json"))["version"])')" = "$TARGET_VERSION"
+          ./.runtime-ci/current-python --version
+
+      - name: Ubuntu Cutover 증거 보관
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-runtime-cutover-ubuntu-${{ github.run_number }}
+          path: |
+            python-upgrade-report.md
+            python-upgrade-report.json
+            .runtime-ci/current.json
+            .runtime-ci/previous.json
+            .runtime-ci/evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
+
+  actual-cutover-windows:
+    if: github.event_name == 'push' || inputs.mode == 'apply-ci'
+    name: Windows · Python 3.12.14 → ${{ inputs.target_python || '3.14.7' }} 실제 Runtime Cutover
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v7
+
+      - name: 현재 Python 3.12.14 준비
+        id: current
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12.14'
+
+      - name: 목표 Python 준비
+        id: target
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ inputs.target_python || '3.14.7' }}
+
+      - name: 실제 managed runtime 생성·검증·전환
+        env:
+          CURRENT_PY: ${{ steps.current.outputs.python-path }}
+          TARGET_PY: ${{ steps.target.outputs.python-path }}
+          TARGET_VERSION: ${{ inputs.target_python || '3.14.7' }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & $env:CURRENT_PY --version
+          & $env:TARGET_PY --version
+          & $env:CURRENT_PY python_server_upgrade.py `
+            --target $env:TARGET_VERSION `
+            --target-executable $env:TARGET_PY `
+            --service portfolio-service `
+            --strict-target-installed `
+            --apply `
+            --confirm APPLY `
+            --runtime-root .runtime-ci `
+            --report python-upgrade-report.md `
+            --json-report python-upgrade-report.json
+          $meta = Get-Content .runtime-ci/current.json -Raw | ConvertFrom-Json
+          if ($meta.version -ne $env:TARGET_VERSION) { throw "runtime pointer mismatch: $($meta.version)" }
+          & .runtime-ci/current-python.cmd --version
+
+      - name: Windows Cutover 증거 보관
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-runtime-cutover-windows-${{ github.run_number }}
+          path: |
+            python-upgrade-report.md
+            python-upgrade-report.json
+            .runtime-ci/current.json
+            .runtime-ci/previous.json
+            .runtime-ci/evidence/
+          retention-days: 30
+          include-hidden-files: true
+          if-no-files-found: error
