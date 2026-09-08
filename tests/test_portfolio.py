@@ -42,11 +42,25 @@ class ExistingToolTests(unittest.TestCase):
         kept = svc_watchdog.recent([now - 10, now - 1000], 60)
         self.assertEqual(len(kept), 1)
 
+    def test_windows_service_name_escaping(self):
+        self.assertEqual(healthcheck.ps_single_quote("svc'prod"), "svc''prod")
+        self.assertEqual(svc_watchdog.ps_single_quote("svc'prod"), "svc''prod")
+
     def test_backup_sha256(self):
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "a.bin"
             path.write_bytes(b"abc")
             self.assertEqual(backup_verify.sha256(path), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+
+    def test_backup_missing_baseline_requires_explicit_record(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "a.bin"
+            path.write_bytes(b"abc")
+            entry = {"name": "a.bin", "min_mb": 0}
+            status, note = backup_verify.verify(entry, td, 9999, False, False)
+            self.assertEqual(status, "WARN")
+            self.assertNotIn("sha256", entry)
+            self.assertIn("--record", note)
 
     def test_cert_target_parser(self):
         self.assertEqual(cert_expiry.parse_target("example.com"), ("example.com", 443))
@@ -86,6 +100,11 @@ class NewToolTests(unittest.TestCase):
 
     def test_capacity_threshold_already_exceeded(self):
         self.assertEqual(capacity_planner.days_to_threshold(91.0, 1.0, 90.0), 0.0)
+
+    def test_capacity_exit_codes_match_status(self):
+        self.assertEqual(capacity_planner.exit_code([{"status": "OK"}]), 0)
+        self.assertEqual(capacity_planner.exit_code([{"status": "OK"}, {"status": "WARN"}]), 1)
+        self.assertEqual(capacity_planner.exit_code([{"status": "WARN"}, {"status": "CRIT"}]), 2)
 
     def test_sla_allowed_downtime(self):
         period = 30 * 24 * 60
