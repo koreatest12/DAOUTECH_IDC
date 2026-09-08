@@ -36,14 +36,13 @@ import subprocess
 import sys
 from datetime import datetime
 
-# ── 기본 임계치 ────────────────────────────────────────────────
 DEFAULT = {
-    "cpu_warn": 80,           # 코어당 부하 백분율
+    "cpu_warn": 80,
     "mem_warn": 85,
     "disk_warn": 85,
     "disk_crit": 92,
-    "services": [],           # 예: ["sshd", "nginx", "crond"]
-    "ping_targets": [],       # 예: ["10.20.0.1", "8.8.8.8"]
+    "services": [],
+    "ping_targets": [],
     "log_dir": "./healthcheck_logs",
 }
 
@@ -78,7 +77,6 @@ class Report:
         return "\n".join(self.lines)
 
 
-# ── 개별 점검 ──────────────────────────────────────────────────
 def check_host(rep):
     rep.head("호스트")
     rep.add(INFO, "호스트명", socket.gethostname())
@@ -156,7 +154,7 @@ def check_memory(rep, cfg):
         with open("/proc/meminfo") as f:
             for line in f:
                 k, _, v = line.partition(":")
-                info[k] = float(v.strip().split()[0])   # kB
+                info[k] = float(v.strip().split()[0])
     except OSError:
         rep.add(WARN, "메모리", "/proc/meminfo 읽기 실패")
         return
@@ -227,9 +225,15 @@ def check_services(rep, cfg):
         rep.add(*service_state(name))
 
 
+def ps_single_quote(value):
+    """Escape one value for use inside a PowerShell single-quoted literal."""
+    return str(value).replace("'", "''")
+
+
 def service_state(name):
     if WIN:
-        out = run_ps(f"(Get-Service -Name '{name}' -ErrorAction SilentlyContinue).Status")
+        safe_name = ps_single_quote(name)
+        out = run_ps(f"(Get-Service -Name '{safe_name}' -ErrorAction SilentlyContinue).Status")
         state = (out or "").strip()
         if not state:
             return CRIT, name, "서비스를 찾을 수 없음"
@@ -278,7 +282,6 @@ def check_top_processes(rep, limit=5):
         rep.add(INFO, comm.strip()[:22], f"{mib:,.0f} MiB")
 
 
-# ── 실행 보조 ──────────────────────────────────────────────────
 def run(cmd):
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
