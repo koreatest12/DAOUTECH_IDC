@@ -26,6 +26,7 @@ on:
           - alert_correlator.py
           - capacity_planner.py
           - sla_calculator.py
+          - python_server_upgrade.py
           - index.html
           - noc-dashboard.html
           - batch-operations-lab.html
