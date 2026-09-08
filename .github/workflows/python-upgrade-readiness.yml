@@ -9,6 +9,14 @@ on:
       - tools/**
       - tests/**
       - .github/workflows/python-upgrade-readiness.yml
+  pull_request:
+    branches: [ main ]
+    paths:
+      - python_server_upgrade.py
+      - requirements.txt
+      - tools/**
+      - tests/**
+      - .github/workflows/python-upgrade-readiness.yml
   workflow_dispatch:
     inputs:
       mode:
@@ -106,7 +114,7 @@ jobs:
           if-no-files-found: warn
 
   actual-cutover-ubuntu:
-    if: github.event_name == 'push' || inputs.mode == 'apply-ci'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || inputs.mode == 'apply-ci'
     name: Ubuntu · Python 3.12.14 → ${{ inputs.target_python || '3.14.7' }} 실제 Runtime Cutover
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -166,7 +174,7 @@ jobs:
           if-no-files-found: error
 
   actual-cutover-windows:
-    if: github.event_name == 'push' || inputs.mode == 'apply-ci'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || inputs.mode == 'apply-ci'
     name: Windows · Python 3.12.x → ${{ inputs.target_python || '3.14.7' }} 실제 Runtime Cutover
     runs-on: windows-latest
     timeout-minutes: 25
