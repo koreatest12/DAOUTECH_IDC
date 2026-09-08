@@ -16,7 +16,7 @@ python3 tools/portfolio_report.py --review review.json --execution execution-rep
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-모든 명령이 성공해야 합니다. 로컬 서버에 목표 Python이 아직 설치되지 않은 경우 `python_server_upgrade.py`의 `PLAN_READY`는 정상이며, 실제 변경 직전에는 목표 실행파일을 설치한 뒤 `--strict-target-installed`로 다시 검증합니다.
+모든 명령이 성공해야 합니다. 로컬 서버에 목표 Python이 아직 설치되지 않은 경우 `python_server_upgrade.py`의 `PLAN_READY`는 정상이며, 실제 변경 직전에는 목표 실행파일을 설치한 뒤 `--strict-target-installed`로 다시 검증합니다. 일반 Functional 실행에도 현재 Runner의 Python 계열을 대상으로 한 Python Upgrade strict precheck가 포함됩니다.
 
 ## 2. 제출·면접 준비 완료 기준
 
@@ -34,6 +34,22 @@ CodeQL                  PASS
 Release Readiness       PASS
 ```
 
+### 2026-09-08 `main` 검증 스냅샷
+
+```text
+Git tracked / Manifest  60 / 60
+Repository Review       ERROR 0 / WARN 0
+Execution Analysis      60 files / error 0 / skipped 0 / READY
+Functional Execution    35 operations / error 0 / PASS
+Scenario Regression     5 / 5 PASS
+Interview Lifecycle     100 / 100 READY
+Unit Tests              35 PASS
+Cross-platform Tests    6 / 6 PASS
+CodeQL                  Python + JavaScript/TypeScript SUCCESS
+Pages-ready             SUCCESS
+Release Candidate       SUCCESS
+```
+
 추가 기준:
 
 - `portfolio-manifest.json`의 제출 필수 파일이 모두 Git 추적 상태
@@ -45,6 +61,8 @@ Release Readiness       PASS
 - 실제 운영 시스템을 변경하는 테스트 없음
 - `interview-readiness.md`의 차단 요소가 없음
 - Python 런타임 변경은 in-place 덮어쓰기가 아닌 side-by-side + 신규 venv + Post Check + Rollback 기준을 사용
+- Capacity 자동화 종료코드는 OK=0 / WARN=1 / CRIT=2로 상태를 구분
+- 백업 SHA-256 기준값은 일반 검증 중 자동 생성하지 않고 `--record` 승인 실행에서만 기록
 
 ## 3. 채용담당자·면접관 권장 확인 순서
 
@@ -104,7 +122,7 @@ Lifecycle 결과가 `BLOCKED`이면 신규 기능을 면접/릴리스 기준으�
 - 신규 venv·테스트·서비스 전환 순서
 - Post Check / Rollback 계획
 
-전용 `.github/workflows/python-upgrade-readiness.yml`에서는 Ubuntu 또는 Windows와 Python 3.13/3.14를 선택해 목표 런타임을 실제 GitHub Runner에 설치한 뒤 strict precheck를 수행합니다.
+전용 `.github/workflows/python-upgrade-readiness.yml`에서는 Ubuntu 또는 Windows와 Python 3.13/3.14를 선택해 목표 런타임을 실제 GitHub Runner에 설치한 뒤 strict precheck를 수행합니다. `.github/workflows/run-files.yml`에서도 `python_server_upgrade.py`를 개별 실행 대상으로 선택할 수 있습니다.
 
 업그레이드 완료 판정은 단순 `python --version`만으로 하지 않습니다. 신규 venv, 의존성, compile, unit/functional, 서비스/로그/배치/SLA Post Check까지 확인한 뒤 전환해야 합니다.
 
@@ -142,6 +160,11 @@ Lifecycle 결과가 `BLOCKED`이면 신규 기능을 면접/릴리스 기준으�
 
 CodeQL PASS는 설정된 정적 분석을 통과했다는 의미이며 모든 종류의 보안 문제 부재를 보장한다는 의미로 과장하지 않습니다.
 
+추가 코드 하드닝:
+
+- Windows 서비스명을 PowerShell single-quoted literal에 전달할 때 `'`를 `''`로 escaping
+- 서비스 상태 확인과 Watchdog 실행은 CI에서 실제 운영서비스를 변경하지 않도록 dry-run/샌드박스 원칙 적용
+
 ## 9. Dependabot과 업그레이드 정책
 
 `.github/dependabot.yml`은 GitHub Actions와 Python 의존성을 매주 확인합니다.
@@ -157,7 +180,13 @@ Python 런타임 자체의 minor upgrade는 패키지 Dependabot과 별개로 `.
 
 ## 10. 릴리스 준비·전체 패키징
 
-`.github/workflows/release-readiness.yml`은 수동 실행 또는 `v*` 태그에서 다음을 수행합니다.
+`.github/workflows/release-readiness.yml`은 다음 방식으로 실행됩니다.
+
+- `main` push: `candidate` 채널 자동 실행
+- 수동 실행: `candidate` / `portfolio-site` / `tagged` 채널 선택
+- `v*` 태그 push: `tagged` 채널 자동 실행
+
+실행 단계:
 
 1. Repository Review
 2. 전체 파일 실행·분석
@@ -168,22 +197,48 @@ Python 런타임 자체의 minor upgrade는 패키지 Dependabot과 별개로 `.
 7. Deterministic Summary
 8. HTML Quality Report
 9. Git 추적 전체 소스 + 생성된 증거 리포트 Bundle 생성
+10. Candidate/선택 채널 Metadata 기록 및 Artifact 보관
 
-릴리스 Bundle은 소스 저장소에 ZIP으로 커밋하지 않고 Actions Artifact로 보관합니다.
+릴리스 Bundle은 소스 저장소에 ZIP으로 커밋하지 않고 Actions Artifact로 90일 보관합니다. `main`에 변경이 반영될 때마다 Candidate Bundle이 실제 검증되므로, 릴리스 Workflow 자체가 장기간 실행되지 않아 상태가 불명확해지는 문제를 방지합니다.
 
 릴리스 채널:
 
-- `candidate`: 면접 전 검증 스냅샷
+- `candidate`: 면접 전 검증 스냅샷 및 `main` 갱신 자동검증
 - `portfolio-site`: 정적 사이트 배포 준비
 - `tagged`: `v*` 태그 기준 재현 패키지
 
-## 11. Pages/정적 사이트
+## 11. 백업 무결성 기준값 관리
+
+`backup_verify.py`는 백업 파일의 존재·크기·신선도·SHA-256을 확인합니다.
+
+안전정책:
+
+- 일반 검증에서 기준 SHA-256이 없으면 `WARN`
+- 기준값이 없다는 이유로 현재 파일을 자동 신뢰하거나 Manifest를 자동 수정하지 않음
+- 기준값 신규 등록·갱신은 운영자가 의도적으로 `--record`를 지정한 승인 실행에서만 수행
+- 이후 검증에서는 승인된 SHA-256과 실제 파일을 비교
+
+따라서 잘못되거나 손상된 파일이 우연히 기준값으로 등록되는 가능성을 줄였습니다.
+
+## 12. Capacity 자동화 상태코드
+
+`capacity_planner.py`는 CPU·메모리·디스크 추세와 임계 도달 예상일을 계산하며 자동화에서 다음 종료코드를 사용합니다.
+
+```text
+0 = OK
+1 = WARN  (30일 이내 임계 도달 예상)
+2 = CRIT  (현재 임계 초과 또는 입력/처리 오류)
+```
+
+리포트의 상태와 shell/cron 종료코드를 일치시켜 사람이 보는 결과와 자동화 시스템의 판단이 다르게 보이는 문제를 방지합니다.
+
+## 13. Pages/정적 사이트
 
 현재 저장소에는 `index.html`과 `.github/workflows/pages-preview.yml`이 있습니다. Pages 설정이 비활성인 동안에는 정적 사이트를 실제 배포하지 않고 `_site`를 검증해 Actions Artifact로 보관합니다.
 
 Pages publishing source가 GitHub Actions로 활성화되면 배포 Workflow로 전환할 수 있습니다.
 
-## 12. 실행 안전 정책
+## 14. 실행 안전 정책
 
 CI에서 금지하는 동작:
 
@@ -199,12 +254,13 @@ CI에서 금지하는 동작:
 - Python 업그레이드는 계획/strict precheck와 GitHub Runner 대상 검증만 수행
 - 서비스 워치독은 `--dry-run`
 - 백업/로그/이력/장애 입력은 임시 샌드박스
+- 백업 기준 해시는 샌드박스에서도 `--record` 승인 단계를 명시적으로 분리
 - 인증서는 읽기 전용 TLS 확인
 - HTML은 문법검사 및 가능한 Runner에서 독립 profile의 headless 로딩
 
 으로 검증합니다.
 
-## 13. 실제 경험과 시뮬레이션 경계
+## 15. 실제 경험과 시뮬레이션 경계
 
 저장소의 품질 판정은 외부 AI를 사용하지 않습니다. 또한 저장소의 시나리오·샘플 데이터·가상 서버명은 실제 고객 데이터를 의미하지 않습니다.
 
@@ -220,7 +276,7 @@ CI에서 금지하는 동작:
 
 Python Server Upgrade 기능 역시 변경관리 역량을 안전하게 재현한 포트폴리오 기능이며 실제 운영 서버 자동 업그레이드 실적이라고 표현하지 않습니다.
 
-## 14. 생성물
+## 16. 생성물
 
 Git에 커밋하지 않고 Actions Artifact에서 확인하는 생성물:
 
