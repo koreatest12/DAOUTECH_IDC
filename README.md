@@ -16,7 +16,7 @@
 - **보안검사**: CodeQL Python + JavaScript/TypeScript
 - **의존성 관리**: Dependabot minor/patch 그룹 검증, major 별도 검토
 - **면접 Lifecycle**: 전체 Git 추적 파일의 등록·분류·설명 근거·업그레이드·릴리스 준비도 자동 관리
-- **릴리스 준비**: 전체 소스 + 검증 리포트 + 면접 증거를 Actions Artifact로 패키징
+- **릴리스 준비**: `main` 갱신마다 Candidate Release를 자동 검증하고 전체 소스 + 검증 리포트 + 면접 증거를 Actions Artifact로 패키징
 - **외부 AI 비의존**: 품질과 준비도 판정은 로컬 결정적 Python 검사기로 수행
 
 브라우저에서는 [index.html](index.html)을 열어 전체 HTML 포트폴리오를 탐색할 수 있습니다.
@@ -56,7 +56,7 @@ python python_server_upgrade.py \
 
 목표 런타임 설치 후에는 `--strict-target-installed`로 실제 target executable 존재까지 강제할 수 있습니다. CI에서는 Python 설치/삭제, 서비스 재기동, systemd/Windows Service 변경을 수행하지 않습니다.
 
-전용 [Python 서버 업그레이드 준비도 Workflow](.github/workflows/python-upgrade-readiness.yml)에서는 Ubuntu/Windows와 목표 Python 3.13/3.14를 선택해 strict precheck 증거를 Artifact로 생성할 수 있습니다.
+전용 [Python 서버 업그레이드 준비도 Workflow](.github/workflows/python-upgrade-readiness.yml)에서는 Ubuntu/Windows와 목표 Python 3.13/3.14를 선택해 strict precheck 증거를 Artifact로 생성할 수 있습니다. 또한 `tools/execute_repo.py --target all --mode functional`의 일반 Functional 검증에도 현재 Runner Python을 대상으로 한 strict precheck가 포함됩니다.
 
 ## 전체 제출·면접 준비 검증
 
@@ -84,6 +84,23 @@ Unit Tests              PASS
 Cross-platform Tests    PASS (Python 3.12/3.13/3.14)
 Python Upgrade Precheck PASS
 CodeQL                  PASS
+Release Candidate       PASS
+```
+
+### 2026-09-08 `main` 검증 스냅샷
+
+```text
+Git tracked / Manifest  60 / 60
+Repository Review       ERROR 0 / WARN 0
+Execution Analysis      60 files / error 0 / skipped 0 / READY
+Functional Execution    35 operations / error 0 / PASS
+Scenario Regression     5 / 5 PASS
+Interview Lifecycle     100 / 100 READY
+Unit Tests              35 PASS
+Cross-platform Tests    6 / 6 PASS
+CodeQL                  Python + JavaScript/TypeScript SUCCESS
+Pages-ready             SUCCESS
+Release Candidate       SUCCESS
 ```
 
 ## 면접 Lifecycle 관리
@@ -142,7 +159,13 @@ P0/P1/P2 업그레이드 계획
 
 ## 릴리스 준비·전체 패키징
 
-[release-readiness.yml](.github/workflows/release-readiness.yml)은 수동 실행 또는 `v*` 태그에서 다음을 수행합니다.
+[release-readiness.yml](.github/workflows/release-readiness.yml)은 다음 방식으로 실행됩니다.
+
+- `main` push: `candidate` 채널로 자동 전체 검증·Bundle 생성
+- 수동 실행: `candidate` / `portfolio-site` / `tagged` 채널 선택
+- `v*` 태그 push: `tagged` 채널로 재현 가능한 Bundle 생성
+
+실행 단계:
 
 1. Repository Review
 2. 전체 파일 실행·분석
@@ -157,7 +180,7 @@ P0/P1/P2 업그레이드 계획
 
 릴리스 채널:
 
-- `candidate`: 면접 전 검증 스냅샷
+- `candidate`: 면접 전 검증 스냅샷 및 `main` 갱신 자동 검증
 - `portfolio-site`: 정적 사이트 배포 준비
 - `tagged`: `v*` 태그 기준 재현 가능한 패키지
 
@@ -200,11 +223,11 @@ Expected Result Comparison
 | [통합 제출 검수](.github/workflows/summary.yml) | Review → Analyze → Functional → Scenario → Lifecycle → Summary → HTML Report |
 | [면접 Lifecycle 관리](.github/workflows/portfolio-management.yml) | 전체 파일 인벤토리·면접 준비도·업그레이드 계획 자동 관리 |
 | [Python 서버 업그레이드](.github/workflows/python-upgrade-readiness.yml) | OS/목표 Python 선택 → strict precheck → 업그레이드/rollback 증거 Artifact |
-| [릴리스 준비](.github/workflows/release-readiness.yml) | 전체 검증 후 전체 소스/증거 Bundle Artifact 생성 |
+| [릴리스 준비](.github/workflows/release-readiness.yml) | `main` Candidate 자동검증 또는 수동/태그 실행 → 전체 소스/증거 Bundle Artifact 생성 |
 | [교차환경 테스트](.github/workflows/tests.yml) | Ubuntu/Windows × Python 3.12/3.13/3.14 compile/unittest/scenario/upgrade precheck |
 | [CodeQL](.github/workflows/codeql.yml) | Python / JavaScript 정적 보안 분석 |
 | [Pages 준비](.github/workflows/pages-preview.yml) | 정적 사이트 검증 후 배포 가능한 `_site` Artifact 생성 |
-| [개별 파일 실행](.github/workflows/run-files.yml) | Python/HTML 개별 smoke/functional 실행 |
+| [개별 파일 실행](.github/workflows/run-files.yml) | Python/HTML 개별 smoke/functional 실행, Python Runtime Upgrade 선택 가능 |
 | [Dependabot](.github/dependabot.yml) | GitHub Actions/Python 의존성 변경 감시 |
 
 ## 포트폴리오 구성
@@ -228,10 +251,10 @@ Expected Result Comparison
 | `log_analyzer.py` | 로그 정규화·오류 유형 집계·급증 탐지 |
 | `alert_correlator.py` | 다중 알람을 Incident/Root Cause 후보로 상관분석 |
 | `disk_forecast.py` | 디스크 임계 도달 시점 예측 |
-| `capacity_planner.py` | CPU·메모리·디스크 Capacity 예측 |
+| `capacity_planner.py` | CPU·메모리·디스크 Capacity 예측, OK=0/WARN=1/CRIT=2 자동화 종료코드 |
 | `sla_calculator.py` | SLA별 허용 장애시간·실제 가용성 판정 |
 | `svc_watchdog.py` | 서비스 정지 감지·재기동 상한/백오프 정책 |
-| `backup_verify.py` | 존재·크기·신선도·SHA-256 백업 검증 |
+| `backup_verify.py` | 존재·크기·신선도·SHA-256 백업 검증, `--record` 명시 승인 시에만 기준 해시 등록 |
 | `cert_expiry.py` | TLS 인증서 만료 사전 확인 |
 | `incident_report.py` | 장애보고서·타임라인·교대 인수인계 생성 |
 | `python_server_upgrade.py` | Python 런타임 사전점검·side-by-side 업그레이드·Post Check·Rollback 계획 |
@@ -249,10 +272,13 @@ Expected Result Comparison
 7. 운영 시나리오는 Root Cause/영향/SLA 예상값과 실제 결과를 대조합니다.
 8. Ubuntu/Windows에서 Python 3.12/3.13/3.14 핵심 로직을 교차 검증합니다.
 9. Python 업그레이드는 기존 런타임을 덮어쓰지 않고 side-by-side + 신규 venv + Post Check + Rollback을 기본 정책으로 합니다.
-10. CodeQL로 Python/JavaScript 정적 보안 분석을 수행합니다.
-11. Lifecycle 관리기는 모든 Git 추적 파일이 Manifest/Catalog 관리망에 포함됐는지 검사합니다.
-12. 실제 서버 Python 설치/삭제, 서버 설정 변경, 방화벽 정책 적용, 운영 서비스 재기동, 실제 백업 변경은 CI에서 실행하지 않습니다.
-13. 외부 AI 서비스 상태는 품질 판정에 영향을 주지 않습니다.
+10. Capacity 결과는 OK=0 / WARN=1 / CRIT=2 종료코드로 cron·관제 자동화가 상태를 구분할 수 있게 합니다.
+11. 백업 SHA-256 기준값은 일반 검증 중 자동 등록하지 않고 `--record`를 명시한 승인 실행에서만 기록합니다.
+12. Windows 서비스명을 PowerShell에 전달할 때 single-quoted literal escaping을 적용합니다.
+13. CodeQL로 Python/JavaScript 정적 보안 분석을 수행합니다.
+14. Lifecycle 관리기는 모든 Git 추적 파일이 Manifest/Catalog 관리망에 포함됐는지 검사합니다.
+15. 실제 서버 Python 설치/삭제, 서버 설정 변경, 방화벽 정책 적용, 운영 서비스 재기동, 실제 백업 변경은 CI에서 실행하지 않습니다.
+16. 외부 AI 서비스 상태는 품질 판정에 영향을 주지 않습니다.
 
 ## 경험과 학습 범위
 
