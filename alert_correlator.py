@@ -7,17 +7,21 @@ import argparse
 import json
 import sys
 from datetime import datetime, timedelta
+from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 SEVERITY = {"INFO": 0, "WARN": 1, "CRIT": 2, "CRITICAL": 2}
-ROOT_METRICS = {"disk", "filesystem", "network", "service", "cpu", "memory"}
+ROOT_METRICS = frozenset({"disk", "filesystem", "network", "service", "cpu", "memory"})
 
 
-def parse_time(value: str) -> datetime:
+@lru_cache(maxsize=128)
+def parse_time_cached(value: str) -> datetime:
+    """Cached datetime parsing for repeated time strings."""
     return datetime.fromisoformat(value)
 
 
-def normalize_alert(item: dict) -> dict:
+def normalize_alert(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "time": str(item.get("time", "1970-01-01T00:00:00")),
         "host": str(item.get("host", "unknown")),
