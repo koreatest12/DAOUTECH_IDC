@@ -16,6 +16,10 @@ on:
           - all
           - python
           - html
+          - scenarios
+          - pipeline
+          - tests
+          - data
           - healthcheck.py
           - log_analyzer.py
           - disk_forecast.py

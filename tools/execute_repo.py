@@ -27,8 +27,14 @@ HTML_FILES = [
     "backup-simulator.html", "incident-lab.html", "server-console.html",
     "network-path.html", "batch-operations-lab.html", "change-management-lab.html",
 ]
-META_TOOLS = ["tools/review_repo.py", "tools/run_analyze.py", "tools/execute_repo.py"]
-TARGETS = ["all", "python", "html", *PYTHON_TOOLS, *HTML_FILES]
+PIPELINE_TOOLS = [
+    "tools/review_repo.py", "tools/run_analyze.py", "tools/portfolio_manager.py",
+    "tools/summarize_reports.py", "tools/portfolio_report.py", "tools/execute_repo.py",
+]
+GROUP_TARGETS = ["all", "python", "html", "scenarios", "pipeline", "tests", "data"]
+TARGETS = [*GROUP_TARGETS, *PYTHON_TOOLS, *HTML_FILES]
+TEXT_DATA_EXTS = {".md", ".txt", ".yml", ".yaml"}
+TEXT_DATA_NAMES = {"LICENSE", ".gitignore"}
 
 
 class ScriptParser(HTMLParser):
@@ -219,11 +225,185 @@ def run_html(name: str, mode: str, sandbox: Path, log_dir: Path) -> list[dict[st
     return out
 
 
+def tracked_files() -> list[str]:
+    """Git-tracked files; falls back to a filesystem walk for release bundles without .git."""
+    try:
+        p = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, timeout=15)
+        if p.returncode == 0 and p.stdout:
+            return sorted(x for x in p.stdout.decode("utf-8").split("\0") if x)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    skip = {".git", "__pycache__", ".venv", "venv", "_site", "release-bundle"}
+    return sorted(
+        f.relative_to(ROOT).as_posix() for f in ROOT.rglob("*")
+        if f.is_file() and not skip.intersection(f.relative_to(ROOT).parts)
+    )
+
+
+def inline(name: str, status: str, command: str, evidence: str, note: str) -> dict[str, Any]:
+    return {"target": name, "status": status, "command": command, "exit_code": 0 if status == "OK" else 1,
+            "duration_ms": 0, "evidence": evidence[:180], "note": note, "log": ""}
+
+
+def check_yaml_text(text: str) -> str | None:
+    """Stdlib-only structural YAML check: YAML forbids tab characters in indentation."""
+    for no, line in enumerate(text.splitlines(), 1):
+        indent = line[: len(line) - len(line.lstrip())]
+        if "\t" in indent:
+            return f"line {no}: tab indentation"
+    return None
+
+
+def run_data(files: list[str]) -> list[dict[str, Any]]:
+    out = []
+    for rel in files:
+        path = ROOT / rel
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            out.append(inline(rel, "ERROR", "read utf-8", str(exc), "Data file must be UTF-8 readable"))
+            continue
+        if not text.strip():
+            out.append(inline(rel, "ERROR", "read utf-8", "empty file", "Data file must not be empty"))
+            continue
+        if rel.endswith(".json"):
+            try:
+                data = json.loads(text)
+            except json.JSONDecodeError as exc:
+                out.append(inline(rel, "ERROR", "json.loads", str(exc), "JSON parse"))
+                continue
+            kind = type(data).__name__
+            size = len(data) if isinstance(data, (dict, list)) else 1
+            out.append(inline(rel, "OK", "json.loads", f"{kind} entries={size}", "JSON parse"))
+        elif rel.endswith((".yml", ".yaml")):
+            problem = check_yaml_text(text)
+            out.append(inline(rel, "ERROR" if problem else "OK", "yaml structure",
+                              problem or f"lines={len(text.splitlines())}", "YAML indentation check"))
+        else:
+            out.append(inline(rel, "OK", "read utf-8", f"lines={len(text.splitlines())}", "UTF-8 text read"))
+    return out
+
+
+def run_scenarios(mode: str, sandbox: Path, log_dir: Path) -> list[dict[str, Any]]:
+    py = sys.executable
+    if mode == "smoke":
+        return [record("scenario_runner.py", [py, "scenario_runner.py", "--help"], log_dir, {0}, "CLI entry-point smoke")]
+    return [record("scenario_runner.py", [py, "scenario_runner.py", "scenarios",
+                                          "--report", str(sandbox / "scenario-report.md"),
+                                          "--json-report", str(sandbox / "scenario-report.json")],
+                   log_dir, {0}, "Deterministic scenario regression against expected verdicts", 60)]
+
+
+def run_tests(mode: str, log_dir: Path) -> list[dict[str, Any]]:
+    if mode == "smoke":
+        code = "import ast,pathlib;fs=sorted(pathlib.Path('tests').glob('test_*.py'));" \
+               "[ast.parse(f.read_text(encoding='utf-8'),str(f)) for f in fs];print(f'parsed={len(fs)}')"
+        return [record("tests#syntax", [sys.executable, "-c", code], log_dir, {0}, "Unit test syntax smoke")]
+    return [record("tests#unittest", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"],
+                   log_dir, {0}, "Full unit test suite", 180)]
+
+
+def write_interim(records: list[dict[str, Any]], path: Path) -> None:
+    errors = sum(r["status"] == "ERROR" for r in records)
+    path.write_text(json.dumps({"target": "all", "mode": "functional", "status": "PASS" if not errors else "FAIL",
+                                "records": records}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def run_pipeline(mode: str, sandbox: Path, log_dir: Path, prior: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Chain the control/report tools so each consumes the previous tool's real output."""
+    py = sys.executable
+    if mode == "smoke":
+        return [record(t, [py, t, "--help"], log_dir, {0}, "Runner/control smoke") for t in PIPELINE_TOOLS]
+    sb = sandbox / "pipeline"; sb.mkdir(exist_ok=True)
+    functional = sb / "functional-run.json"
+    write_interim(prior, functional)
+    out = [
+        record("tools/review_repo.py", [py, "tools/review_repo.py", "--report", str(sb/"review.md"),
+                                        "--json-report", str(sb/"review.json")], log_dir, {0},
+               "Repository review into sandbox", 60),
+        record("tools/run_analyze.py", [py, "tools/run_analyze.py", "--manifest", "portfolio-manifest.json",
+                                        "--report", str(sb/"execution-report.md"),
+                                        "--json-report", str(sb/"execution-report.json")], log_dir, {0},
+               "Execution analysis of every tracked file", 180),
+        record("tools/portfolio_manager.py", [py, "tools/portfolio_manager.py", "--fail-on-blocked",
+                                              "--readiness-report", str(sb/"interview-readiness.md"),
+                                              "--json-report", str(sb/"interview-readiness.json"),
+                                              "--inventory-report", str(sb/"feature-inventory.md"),
+                                              "--upgrade-report", str(sb/"upgrade-plan.md")], log_dir, {0},
+               "Lifecycle readiness gate", 60),
+        record("tools/summarize_reports.py", [py, "tools/summarize_reports.py",
+                                              "--review-json", str(sb/"review.json"),
+                                              "--execution-json", str(sb/"execution-report.json"),
+                                              "--functional-json", str(functional),
+                                              "--report", str(sb/"summary.md"),
+                                              "--json-report", str(sb/"summary.json")], log_dir, {0},
+               "Deterministic summary of chained reports"),
+    ]
+    scenario_json = sandbox / "scenario-report.json"
+    report_cmd = [py, "tools/portfolio_report.py", "--review", str(sb/"review.json"),
+                  "--execution", str(sb/"execution-report.json"), "--functional", str(functional),
+                  "--summary", str(sb/"summary.json"), "--output", str(sb/"portfolio-report.html")]
+    if scenario_json.exists():
+        report_cmd[-2:-2] = ["--scenarios", str(scenario_json)]
+    out.append(record("tools/portfolio_report.py", report_cmd, log_dir, {0}, "Integrated HTML quality report"))
+    out.append(record("tools/execute_repo.py", [py, "tools/execute_repo.py", "--list"], log_dir, {0},
+                      "Self target listing (no recursive run)"))
+    return out
+
+
+def base_name(target: str) -> str:
+    return target.split("#", 1)[0]
+
+
+def coverage_gate(records: list[dict[str, Any]], tracked: list[str]) -> dict[str, Any]:
+    """Every tracked executable/data file must have been exercised by at least one record."""
+    covered = {base_name(r["target"]) for r in records}
+    if any(r["target"] in {"tests#unittest", "tests#syntax"} and r["status"] == "OK" for r in records):
+        covered.update(f for f in tracked if f.startswith("tests/") and f.endswith(".py"))
+    required = [f for f in tracked if is_runnable(f) or is_data(f)]
+    missing = [f for f in required if f not in covered]
+    status = "OK" if not missing else "ERROR"
+    evidence = f"covered={len(required)-len(missing)}/{len(required)}"
+    if missing:
+        evidence += " missing=" + ",".join(missing[:8])
+    return inline("coverage#gate", status, "git ls-files coverage", evidence,
+                  "Every tracked .py/.html/data file must be executed or validated")
+
+
+def is_runnable(rel: str) -> bool:
+    return rel.endswith((".py", ".html"))
+
+
+def is_data(rel: str) -> bool:
+    return Path(rel).suffix in {".json", *TEXT_DATA_EXTS} or Path(rel).name in TEXT_DATA_NAMES
+
+
 def selected(target: str) -> list[str]:
     if target == "all": return [*PYTHON_TOOLS,*HTML_FILES]
     if target == "python": return PYTHON_TOOLS[:]
     if target == "html": return HTML_FILES[:]
+    if target in {"scenarios", "pipeline", "tests", "data"}: return []
     return [target]
+
+
+def execute(target: str, mode: str, log_dir: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    tracked = tracked_files()
+    with tempfile.TemporaryDirectory(prefix="daoutech-run-") as td:
+        sandbox = Path(td)
+        for name in selected(target):
+            records += run_python(name, mode, sandbox, log_dir) if name.endswith(".py") else run_html(name, mode, sandbox, log_dir)
+        if target in {"all", "scenarios"}:
+            records += run_scenarios(mode, sandbox, log_dir)
+        if target in {"all", "tests"}:
+            records += run_tests(mode, log_dir)
+        if target in {"all", "data"}:
+            records += run_data([f for f in tracked if is_data(f)])
+        if target in {"all", "pipeline"}:
+            records += run_pipeline(mode, sandbox, log_dir, records)
+        if target == "all":
+            records.append(coverage_gate(records, tracked))
+    return records
 
 
 def render(records: list[dict[str, Any]], target: str, mode: str) -> str:
@@ -232,7 +412,7 @@ def render(records: list[dict[str, Any]], target: str, mode: str) -> str:
     for r in records:
         detail="; ".join(x for x in (r.get("evidence",""),r.get("note","")) if x).replace("|","\\|")
         lines.append(f"| {r['status']} | `{r['target']}` | {r.get('exit_code')} | {detail} |")
-    lines += ["","## 안전 정책","","- 서비스 워치독은 `--dry-run`만 사용합니다.","- 백업/이력/보고서 입력은 임시 샌드박스에 생성합니다.","- 인증서 검사는 읽기 전용 TLS 연결만 수행합니다.","- Python 런타임 업그레이드는 strict precheck만 수행하며 설치·삭제·서비스 변경을 하지 않습니다.","- HTML은 JavaScript 검사 후 격리된 headless 브라우저 profile과 제한된 virtual time으로 실제 로딩합니다.",""]
+    lines += ["","## 안전 정책","","- 서비스 워치독은 `--dry-run`만 사용합니다.","- 백업/이력/보고서 입력은 임시 샌드박스에 생성합니다.","- 인증서 검사는 읽기 전용 TLS 연결만 수행합니다.","- Python 런타임 업그레이드는 strict precheck만 수행하며 설치·삭제·서비스 변경을 하지 않습니다.","- HTML은 JavaScript 검사 후 격리된 headless 브라우저 profile과 제한된 virtual time으로 실제 로딩합니다.","- 제어/리포트 도구 체인(review → analyze → lifecycle → summary → HTML report)은 샌드박스 경로에만 출력합니다.","- `all` 대상은 `git ls-files` 기준 모든 .py/.html/데이터 파일이 실행·검증되었는지 coverage gate로 확인합니다.",""]
     return "\n".join(lines)
 
 
@@ -247,14 +427,8 @@ def main() -> int:
     args=ap.parse_args()
     if args.list:
         print("\n".join(TARGETS)); return 0
-    log_dir=ROOT/args.log_dir; records=[]
-    with tempfile.TemporaryDirectory(prefix="daoutech-run-") as td:
-        sandbox=Path(td)
-        for name in selected(args.target):
-            records += run_python(name,args.mode,sandbox,log_dir) if name.endswith(".py") else run_html(name,args.mode,sandbox,log_dir)
-        if args.target=="all":
-            for meta in META_TOOLS:
-                records.append(record(meta,[sys.executable,meta,"--help"],log_dir,{0},"Runner/control smoke"))
+    log_dir=ROOT/args.log_dir
+    records=execute(args.target,args.mode,log_dir)
     text=render(records,args.target,args.mode)
     (ROOT/args.report).write_text(text,encoding="utf-8")
     errors=sum(r["status"]=="ERROR" for r in records)
