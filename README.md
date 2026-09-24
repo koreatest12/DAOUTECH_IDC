@@ -225,6 +225,7 @@ Expected Result Comparison
 | [Python 서버 업그레이드](.github/workflows/python-upgrade-readiness.yml) | OS/목표 Python 선택 → strict precheck → 업그레이드/rollback 증거 Artifact |
 | [릴리스 준비](.github/workflows/release-readiness.yml) | `main` Candidate 자동검증 또는 수동/태그 실행 → 전체 소스/증거 Bundle Artifact 생성 |
 | [교차환경 테스트](.github/workflows/tests.yml) | Ubuntu/Windows × Python 3.12/3.13/3.14 compile/unittest/scenario/upgrade precheck |
+| [통합 검증 하네스](.github/workflows/harness.yml) | 모든 브랜치 push/PR에서 compile/unittest/scenario/품질/Lifecycle/functional 실행 단일 게이트 |
 | [CodeQL](.github/workflows/codeql.yml) | Python / JavaScript 정적 보안 분석 |
 | [Pages 준비](.github/workflows/pages-preview.yml) | 정적 사이트 검증 후 배포 가능한 `_site` Artifact 생성 |
 | [개별 파일 실행](.github/workflows/run-files.yml) | Python/HTML 개별 smoke/functional 실행, Python Runtime Upgrade 선택 가능 |

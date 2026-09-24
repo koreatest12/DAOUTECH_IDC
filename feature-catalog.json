@@ -52,6 +52,7 @@
       "python_server_upgrade.py",
       ".github/workflows/summary.yml",
       ".github/workflows/tests.yml",
+      ".github/workflows/harness.yml",
       ".github/workflows/python-upgrade-readiness.yml",
       ".github/workflows/codeql.yml",
       ".github/workflows/portfolio-management.yml"

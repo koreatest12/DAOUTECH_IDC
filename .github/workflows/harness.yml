@@ -1,0 +1,112 @@
+name: 통합 검증 하네스
+
+# main 외 모든 작업 브랜치(push)와 PR에서 동일한 검증 하네스를 수행합니다.
+# compile → unittest → 시나리오 회귀 → 저장소 품질 → Lifecycle → functional 실행 순서로
+# 하나의 게이트를 구성하며, 운영 시스템을 변경하지 않습니다.
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: harness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: 통합 검증 하네스 · Python 3.12
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 소스 체크아웃
+        uses: actions/checkout@v7
+
+      - name: Python 3.12 준비
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Node 24 준비
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: 런타임 확인
+        run: |
+          set -euo pipefail
+          python3 --version
+          node --version
+
+      - name: Python 전체 compile 검사
+        run: python3 -m compileall -q .
+
+      - name: unittest 실행
+        run: |
+          set -o pipefail
+          python3 -m unittest discover -s tests -p 'test_*.py' -v 2>&1 | tee unit-test-results.txt
+
+      - name: 시나리오 회귀 검증
+        run: |
+          set -o pipefail
+          python3 scenario_runner.py scenarios --report scenario-report.md --json-report scenario-report.json
+
+      - name: 저장소 품질 검수
+        run: |
+          set -euo pipefail
+          python3 tools/review_repo.py --report review.md --json-report review.json
+
+      - name: Lifecycle 준비도 검증
+        run: |
+          set -euo pipefail
+          python3 tools/portfolio_manager.py --fail-on-blocked
+
+      - name: 전체 파일 functional 실행
+        run: |
+          set -euo pipefail
+          python3 tools/execute_repo.py \
+            --target all \
+            --mode functional \
+            --report run-results.md \
+            --json-report run-results.json \
+            --log-dir execution-logs
+
+      - name: 결과 요약
+        if: always()
+        run: |
+          {
+            echo '# 통합 검증 하네스'
+            echo ''
+            echo "- Ref: **${GITHUB_REF_NAME}**"
+            echo ''
+            echo '```text'
+            tail -n 20 unit-test-results.txt 2>/dev/null || true
+            echo '```'
+            if [ -s run-results.md ]; then cat run-results.md; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 하네스 결과 보관
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: harness-${{ github.run_number }}
+          path: |
+            unit-test-results.txt
+            scenario-report.md
+            scenario-report.json
+            review.md
+            review.json
+            run-results.md
+            run-results.json
+            execution-logs/
+            interview-readiness.md
+            interview-readiness.json
+            feature-inventory.md
+            upgrade-plan.md
+          retention-days: 14
+          if-no-files-found: warn
