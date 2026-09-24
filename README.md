@@ -103,6 +103,20 @@ Pages-ready             SUCCESS
 Release Candidate       SUCCESS
 ```
 
+### 전체 파일 실행기 (`tools/execute_repo.py`)
+
+`--target all`은 `git ls-files` 기준 **모든 추적 파일**을 실행·검증하고 coverage gate로 누락을 차단합니다.
+
+| 그룹 | 대상 | 실행 내용 |
+|---|---|---|
+| `python` | 운영 도구 11종 | 샌드박스 fixture 기반 functional 실행 |
+| `html` | HTML 시뮬레이터 9종 | inline JS `node --check` + headless 브라우저 로딩 |
+| `scenarios` | `scenario_runner.py` + scenarios 디렉터리 JSON | 기대값 대조 회귀 검증 |
+| `tests` | tests 디렉터리 unittest 전체 | 전체 unittest |
+| `data` | JSON/YAML/Markdown/텍스트 | JSON 파싱, YAML 탭 들여쓰기, UTF-8 읽기 |
+| `pipeline` | tools 디렉터리 제어/리포트 도구 | review → analyze → lifecycle → summary → HTML report 체인 (샌드박스 출력) |
+| `coverage#gate` | 전체 | 실행·검증되지 않은 추적 파일이 있으면 FAIL |
+
 ## 면접 Lifecycle 관리
 
 `tools/portfolio_manager.py`는 저장소 파일 목록을 하드코딩하지 않고 다음 3개 정보를 비교합니다.
