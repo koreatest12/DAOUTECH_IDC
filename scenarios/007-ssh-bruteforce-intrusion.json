@@ -1,0 +1,15 @@
+{
+  "id": "SCN-007",
+  "title": "SSH 무차별 대입 → 계정 탈취 → 권한 상승 → 데이터 유출 시도",
+  "elapsed_minutes": 50,
+  "sla_minutes": 60,
+  "events": [
+    {"id":"ssh-bruteforce","minute":0,"component":"BASTION sshd","severity":"SEV1","state":"DEGRADED","message":"auth failure 1200/min from single source"},
+    {"id":"account-compromise","minute":12,"component":"svc_batch account","severity":"CRIT","state":"FAILED","depends_on":"ssh-bruteforce","message":"successful login after repeated failures"},
+    {"id":"privilege-escalation","minute":15,"component":"WAS01 sudo","severity":"CRIT","state":"FAILED","depends_on":"account-compromise","message":"unexpected sudo to root"},
+    {"id":"data-exfil","minute":22,"component":"Egress Firewall","severity":"CRIT","state":"DEGRADED","depends_on":"privilege-escalation","message":"large outbound transfer to unknown host"},
+    {"id":"host-isolation","minute":30,"component":"WAS01 service","severity":"CRIT","state":"BLOCKED","depends_on":"privilege-escalation","message":"host isolated for forensics"},
+    {"id":"backup-delay","minute":5,"component":"BACKUP-NIGHTLY","severity":"SEV3","state":"DEGRADED","message":"backup window overrun"}
+  ],
+  "expected": {"root_cause":"ssh-bruteforce","severity":"SEV1","sla_risk":"HIGH","min_affected":5}
+}

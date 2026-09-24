@@ -22,6 +22,9 @@
 | 백업 | `backup_verify.py`, `backup-simulator.html` | SUCCESS와 복구 가능성의 차이, SHA-256 |
 | 변경 | `change-management-lab.html`, `../scenarios/005-change-rollback.json` | Pre/Post Check, Rollback 조건 |
 | 네트워크 | `network-path.html`, `../scenarios/004-dns-path-failure.json` | IP/DNS/Port/L4 구간 분리 진단 |
+| 인증서 | `cert_expiry.py`, `../scenarios/006-tls-cert-expiry.json` | 만료 사전 탐지, Handshake 실패의 후행 영향, 갱신·배포 절차 |
+| 보안 침해 | `linux-security-lab.html`, `../scenarios/007-ssh-bruteforce-intrusion.json` | 무차별 대입 탐지, 계정 탈취·권한 상승 흐름, 격리 우선 판단 |
+| 전원/이중화 | `../scenarios/008-power-feed-failover.json` | 이중 전원 Feed, Failover 전제조건, 노이즈 알람과 Root Cause 구분 |
 | Capacity/SLA | `capacity_planner.py`, `disk_forecast.py`, `sla_calculator.py` | 추세, 임계 도달, 허용 장애시간 |
 | 품질/보안 | `../.github/workflows/summary.yml`, `../.github/workflows/tests.yml`, `../.github/workflows/codeql.yml` | deterministic gate, 교차환경, 정적 보안 분석 |
 | 릴리스 | `../.github/workflows/release-readiness.yml`, `../tools/portfolio_manager.py` | 면접 직전 재검증, Artifact, 변경 이력 |

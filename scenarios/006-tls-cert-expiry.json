@@ -1,0 +1,14 @@
+{
+  "id": "SCN-006",
+  "title": "TLS 인증서 만료로 인한 대외 API·파일 전송 장애",
+  "elapsed_minutes": 35,
+  "sla_minutes": 60,
+  "events": [
+    {"id":"cert-expired","minute":0,"component":"api.example.internal TLS","severity":"SEV2","state":"FAILED","message":"certificate notAfter passed"},
+    {"id":"tls-handshake","minute":1,"component":"L4 VIP :443","severity":"CRIT","state":"FAILED","depends_on":"cert-expired","message":"handshake failure: certificate has expired"},
+    {"id":"open-api","minute":3,"component":"Open API Gateway","severity":"CRIT","state":"DEGRADED","depends_on":"tls-handshake","message":"partner calls rejected"},
+    {"id":"sftp-transfer","minute":6,"component":"BATCH-FILE-SEND","severity":"CRIT","state":"BLOCKED","depends_on":"tls-handshake","message":"FTPS upload aborted"},
+    {"id":"cpu-noise","minute":2,"component":"WEB02 CPU","severity":"WARN","state":"DEGRADED","message":"retry storm CPU 78%"}
+  ],
+  "expected": {"root_cause":"cert-expired","severity":"SEV2","sla_risk":"MEDIUM","min_affected":4}
+}
