@@ -12,7 +12,7 @@ from tools import portfolio_report
 class ScenarioRunnerTests(unittest.TestCase):
     def test_all_repository_scenarios_pass(self):
         files = scenario_runner.scenario_files(Path("scenarios"))
-        self.assertGreaterEqual(len(files), 5)
+        self.assertGreaterEqual(len(files), 8)
         results = [scenario_runner.analyze(scenario_runner.load(path)) for path in files]
         self.assertTrue(all(result.status == "PASS" for result in results))
 
@@ -31,6 +31,34 @@ class ScenarioRunnerTests(unittest.TestCase):
             "c": {"id": "c", "depends_on": "b"},
         }
         self.assertEqual(scenario_runner.descendants(events, "a"), {"b", "c"})
+
+    def test_extended_scenarios_match_expected_results(self):
+        cases = {
+            "006-tls-cert-expiry.json": ("cert-expired", "SEV2", "MEDIUM", 4),
+            "007-ssh-bruteforce-intrusion.json": ("ssh-bruteforce", "SEV1", "HIGH", 5),
+            "008-power-feed-failover.json": ("ups-a-feed", "SEV2", "BREACHED", 5),
+        }
+        for name, (root, severity, risk, affected) in cases.items():
+            with self.subTest(scenario=name):
+                result = scenario_runner.analyze(scenario_runner.load(Path("scenarios") / name))
+                self.assertEqual(result.status, "PASS", result.validation_errors)
+                self.assertEqual(result.root_cause, root)
+                self.assertEqual(result.severity, severity)
+                self.assertEqual(result.sla_risk, risk)
+                self.assertEqual(result.affected_count, affected)
+
+    def test_noise_events_are_excluded_from_impact(self):
+        result = scenario_runner.analyze(scenario_runner.load(Path("scenarios/007-ssh-bruteforce-intrusion.json")))
+        self.assertNotIn("BACKUP-NIGHTLY", result.blocked_services)
+        self.assertIn("Egress Firewall", result.blocked_services)
+
+    def test_equal_severity_roots_rank_by_downstream_impact(self):
+        events = {
+            "agent": {"id": "agent", "severity": "SEV2", "minute": 0},
+            "power": {"id": "power", "severity": "SEV2", "minute": 1},
+            "db": {"id": "db", "depends_on": "power"},
+        }
+        self.assertEqual(scenario_runner.root_candidates(events)[0]["id"], "power")
 
     def test_sla_risk_boundaries(self):
         self.assertEqual(scenario_runner.sla_risk(10, 60), "LOW")

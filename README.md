@@ -213,6 +213,9 @@ Expected Result Comparison
 | [SCN-003](scenarios/003-backup-integrity.json) | 백업 SHA-256 불일치 → 복구 신뢰성 저하 |
 | [SCN-004](scenarios/004-dns-path-failure.json) | DNS 장애 → APP/배치 연결 장애 |
 | [SCN-005](scenarios/005-change-rollback.json) | 변경 후 Post Check 실패 → Rollback 판단 |
+| [SCN-006](scenarios/006-tls-cert-expiry.json) | TLS 인증서 만료 → Handshake 실패 → 대외 API/파일 전송 장애 |
+| [SCN-007](scenarios/007-ssh-bruteforce-intrusion.json) | SSH 무차별 대입 → 계정 탈취 → 권한 상승 → 유출 시도·호스트 격리 |
+| [SCN-008](scenarios/008-power-feed-failover.json) | UPS A-Feed 장애 → 단일 PSU → DB Failover 실패 → SLA 초과 |
 
 시나리오 JSON의 `expected`와 계산 결과가 달라지면 회귀 실패로 처리됩니다.
 

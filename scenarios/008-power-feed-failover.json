@@ -1,0 +1,15 @@
+{
+  "id": "SCN-008",
+  "title": "UPS A-Feed 장애와 이중화 Failover 실패",
+  "elapsed_minutes": 130,
+  "sla_minutes": 120,
+  "events": [
+    {"id":"nms-agent","minute":0,"component":"NMS Agent","severity":"SEV2","state":"FAILED","message":"polling agent down"},
+    {"id":"ups-a-feed","minute":1,"component":"RACK-12 UPS A-Feed","severity":"SEV2","state":"FAILED","message":"input breaker trip"},
+    {"id":"psu-single","minute":1,"component":"DB01/DB02 PSU","severity":"CRIT","state":"DEGRADED","depends_on":"ups-a-feed","message":"running on single power supply"},
+    {"id":"db-primary-down","minute":2,"component":"DB01 primary","severity":"CRIT","state":"FAILED","depends_on":"psu-single","message":"PSU B faulty, host powered off"},
+    {"id":"failover-fail","minute":4,"component":"DB Cluster VIP","severity":"CRIT","state":"FAILED","depends_on":"db-primary-down","message":"standby promotion failed: replication lag"},
+    {"id":"online-down","minute":5,"component":"Online Service","severity":"CRIT","state":"BLOCKED","depends_on":"failover-fail","message":"DB connection refused"}
+  ],
+  "expected": {"root_cause":"ups-a-feed","severity":"SEV2","sla_risk":"BREACHED","min_affected":5}
+}
